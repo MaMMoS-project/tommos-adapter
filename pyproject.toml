@@ -1,0 +1,120 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tommos-adapter"
+version = "0.1.0"
+authors = [
+  { name = "Andrea Petrocchi" },
+  { name = "Martin Lang" },
+  { name = "Michael Adams" },
+]
+description = "Ubermag adapter for the micromagnetic calculator tommos."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3 :: Only",
+  'Topic :: Scientific/Engineering :: Physics',
+]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.urls]
+Homepage = "https://MaMMoS-project.github.io"
+Documentation = "https://mammos-project.github.io/mammos"
+Repository = "https://github.com/MaMMoS-project/tommos-adapter"
+Issues = "https://github.com/MaMMoS-project/tommos-adapter/issues"
+Changelog = "https://mammos-project.github.io/mammos/changelog"
+
+[tool.ruff]
+target-version = "py311"
+exclude = [
+  "dev",
+]
+line-length = 120
+[tool.ruff.lint]
+select = [
+  "B",   # flake8-bugbear
+  "D",   # pydocstyle
+  "E",   # pycodestyle
+  "F",   # Pyflakes
+  "I",   # isort
+  "SIM", # flake8-simplify
+  "UP",  # pyupgrade
+]
+isort.known-local-folder = [ "src/tommos_adapter" ]
+pydocstyle.convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["B018"]  # "Found useless expression. Either assign it to a variable or remove it."; false positives when using implicit __repr__ in the notebook
+"tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
+
+[tool.pixi.workspace]
+channels = [ "conda-forge" ]
+platforms = [ "osx-arm64", "linux-64", "osx-64", "win-64" ]
+
+[tool.pixi.dependencies]
+python = "==3.11"
+hatch = "*"
+ipython = "*"
+jupyterlab = ">3"
+nbval = "*"
+packaging = "<25"
+pre-commit = "*"
+pytest = "*"
+ruff = "*"
+towncrier = "*"
+
+[tool.pixi.pypi-dependencies]
+tommos-adapter = { path = ".", editable = true }
+
+[tool.pixi.tasks]
+examples = "jupyter-lab examples"
+test-unittest = "pytest -vv tests"
+test-docstrings = "pytest -vv --doctest-modules src/tommos_adapter"
+test-notebooks = "pytest -vv --nbval-lax examples"
+test-all = { depends-on = ["test-unittest", "test-docstrings", "test-notebooks"] }
+style = "pre-commit run --all-files"
+
+[tool.towncrier]
+directory = "changes"
+filename = "CHANGELOG.md"
+package = "tommos_adapter"
+title_format = "## [tommos-adapter {version}](https://github.com/MaMMoS-project/tommos-adapter/tree/{version}) – {project_date}"
+# point to PRs instead of issues; CI ensures that the correct PR numbers exist
+issue_format = "[#{issue}](https://github.com/MaMMoS-project/tommos-adapter/pull/{issue})"
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Misc"
+showcontent = true
