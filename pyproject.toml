@@ -22,7 +22,14 @@ classifiers = [
   'Topic :: Scientific/Engineering :: Physics',
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "tommos @ https://github.com/MaMMoS-project/tommos.git",
+  # "micromagneticdata @ https://github.com/ubermag/micromagneticdata.git",
+  "micromagneticmodel @ https://github.com/ubermag/micromagneticmodel.git",
+  # "micromagnetictests @ https://github.com/ubermag/micromagnetictests.git",
+  # "ubermagtable @ https://github.com/ubermag/ubermagtable.git",
+  "pyvista",
+]
 
 [project.urls]
 Homepage = "https://MaMMoS-project.github.io"
@@ -30,6 +37,9 @@ Documentation = "https://mammos-project.github.io/mammos"
 Repository = "https://github.com/MaMMoS-project/tommos-adapter"
 Issues = "https://github.com/MaMMoS-project/tommos-adapter/issues"
 Changelog = "https://mammos-project.github.io/mammos/changelog"
+
+[tool.hatch.metadata]
+allow-direct-references = true  # keep true as long as we are using direct dependencies from github
 
 [tool.ruff]
 target-version = "py311"
