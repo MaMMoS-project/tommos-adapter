@@ -1,4 +1,4 @@
-"""This subpackage provides an adapter package for `tommos`."""
+"""This subpackage provides an Ubermag adapter package for `tommos`."""
 
 import importlib.metadata
 
