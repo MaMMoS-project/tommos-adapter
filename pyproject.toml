@@ -38,6 +38,9 @@ Repository = "https://github.com/MaMMoS-project/tommos-adapter"
 Issues = "https://github.com/MaMMoS-project/tommos-adapter/issues"
 Changelog = "https://mammos-project.github.io/mammos/changelog"
 
+[tool.coverage.run]
+omit = ["tommos_adapter/tests/*"]
+
 [tool.hatch.metadata]
 allow-direct-references = true  # keep true as long as we are using direct dependencies from github
 
@@ -62,7 +65,7 @@ pydocstyle.convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["B018"]  # "Found useless expression. Either assign it to a variable or remove it."; false positives when using implicit __repr__ in the notebook
-"tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
+"src/tommos_adapter/tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
 
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
@@ -84,7 +87,7 @@ tommos-adapter = { path = ".", editable = true }
 
 [tool.pixi.tasks]
 examples = "jupyter-lab examples"
-test-unittest = "pytest -vv tests"
+test-unittest = "python -c 'import tommos_adapter; tommos_adapter.test()'"
 test-docstrings = "pytest -vv --doctest-modules src/tommos_adapter"
 test-notebooks = "pytest -vv --nbval-lax examples"
 test-all = { depends-on = ["test-unittest", "test-docstrings", "test-notebooks"] }
