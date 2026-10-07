@@ -63,6 +63,15 @@ def test_krn_script_translates_regional_materials(system):
     assert table[:, 5] == pytest.approx((1e-11, 5e-12))
 
 
+def test_krn_script_matches_known_example(system):
+    expected = (
+        "0 0 1000000 0 1.2566370614359172 9.9999999999999994e-12\n"
+        "1.5707963267948966 0 200000 0 0.62831853071795862 4.9999999999999997e-12\n"
+    )
+
+    assert scripts.krn_script(system) == expected
+
+
 def test_p2_script_creates_single_field_step(system):
     config = configparser.ConfigParser()
     config.read_string(scripts.p2_script(system, max_iter=1000, tol_fun=1e-8, eps_a="auto"))
