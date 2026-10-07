@@ -22,10 +22,9 @@ class HysteresisDriver(adapter_base.ExternalDriver):
     Examples:
         1. Defining driver with a keyword argument.
 
-        >>> from pathlib import Path
         >>> import tommos_adapter as ta
         ...
-        >>> hd = ta.HysteresisDriver(mesh_path=Path("cube.npz").resolve())
+        >>> hd = ta.HysteresisDriver()
 
         2. Passing an argument which is not allowed.
 
@@ -47,19 +46,31 @@ class HysteresisDriver(adapter_base.ExternalDriver):
     """
 
     _allowed_attributes = [
-        "mesh_path",
         "krn_path",
         "p2_path",
     ]
 
     def _checkargs(self, kwargs):
-        pass  # TODO: checkargs
+        if "n" in kwargs and "Hsteps" in kwargs:
+            # both Hsteps and n (number of steps) are defined, which is not allowed
+            raise ValueError("Cannot define both n and Hsteps.")
+
+        if all(item in kwargs for item in ["Hmin", "Hmax", "n"]):
+            # case of a symmetric hysteresis simulation
+            # construct symmetric Hsteps from (Hmin, Hmax, n)
+            kwargs["Hsteps"] = [
+                [kwargs["Hmin"], kwargs["Hmax"], kwargs["n"]],
+                [kwargs["Hmax"], kwargs["Hmin"], kwargs["n"]],
+            ]
+            for key in ["Hmin", "Hmax", "n"]:
+                kwargs.pop(key)
+
+        else:
+            return ValueError("Cannot drive without a full definition of Hmin, Hmax, and one between n or Hsteps.")
 
     def _write_input_files(self, system, **kwargs):
         """Write input files."""
-        tommos_adapter.scripts.write_mesh(self, system, **kwargs)
-        tommos_adapter.scripts.write_krn(self, system, **kwargs)
-        tommos_adapter.scripts.write_p2(self, system, **kwargs)
+        tommos_adapter.scripts.write_input_files(self, system, **kwargs)
 
     def _call(self, system, runner, verbose=1, **kwargs):
         if runner is None:
@@ -107,8 +118,9 @@ class HysteresisDriver(adapter_base.ExternalDriver):
         pass
 
     def _check_system(self, system):
-        """Check that system.energy is defined."""
-        pass  # TODO: reintroduce system checks
+        """Checks that the system is well defined."""
+        if len(system.energy) == 0:
+            raise RuntimeError("System's energy is not defined")
 
     @property
     def _x(self):
