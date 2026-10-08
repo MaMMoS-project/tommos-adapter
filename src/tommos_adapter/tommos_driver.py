@@ -3,21 +3,26 @@
 The only available driver is a `HysteresisDriver` as the only capability of `tommos` is to run hysteresis loops.
 """
 
-from pathlib import Path
+from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
 import pyvista as pv
 from micromagneticmodel import adapter_base
 
-import tommos_adapter
+from tommos_adapter.scripts import write_input_files
+from tommos_adapter.tommos_runner import TommosRunner
+
+if TYPE_CHECKING:
+    import micromagneticmodel
+
+    import tommos_adapter
 
 
 class HysteresisDriver(adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
-
-    Attributes:
-        input_krn: Input `krn` file.
-        input_p2: Input `p2` file.
-        mesh: Input mesh in `npz` format.
 
     Examples:
         1. Defining driver with a keyword argument.
@@ -45,36 +50,42 @@ class HysteresisDriver(adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = [
-        "krn_path",
-        "p2_path",
-    ]
+    _allowed_attributes = []
 
-    def _checkargs(self, kwargs):
-        if "n" in kwargs and "Hsteps" in kwargs:
-            # both Hsteps and n (number of steps) are defined, which is not allowed
-            raise ValueError("Cannot define both n and Hsteps.")
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Check all given argument."""
+        # The next steps assume that the axis between Hmax and Hmin always passes via the origin.
+        H_array = np.array(kwargs["Hmax"])
+        h = H_array / np.linalg.norm(H_array)  # unit vector in the direction of Hmax
+        kwargs["hx"] = h[0]
+        kwargs["hy"] = h[1]
+        kwargs["hz"] = h[2]
+        kwargs["hstart"] = np.vdot(h, np.array(kwargs["Hmin"]))
+        kwargs["hfinal"] = np.vdot(h, np.array(kwargs["Hmax"]))
+        kwargs["hstep"] = (kwargs["hfinal"] - kwargs["hstart"]) / (kwargs["n"] - 1)
 
-        if all(item in kwargs for item in ["Hmin", "Hmax", "n"]):
-            # case of a symmetric hysteresis simulation
-            # construct symmetric Hsteps from (Hmin, Hmax, n)
-            kwargs["Hsteps"] = [
-                [kwargs["Hmin"], kwargs["Hmax"], kwargs["n"]],
-                [kwargs["Hmax"], kwargs["Hmin"], kwargs["n"]],
-            ]
-            for key in ["Hmin", "Hmax", "n"]:
-                kwargs.pop(key)
+        # Remove unwanted parameters
+        for key in ["Hmin", "Hmax", "n"]:
+            kwargs.pop(key)
 
-        else:
-            return ValueError("Cannot drive without a full definition of Hmin, Hmax, and one between n or Hsteps.")
+        # For the moment symmetric hysteresis simulations or multi-step drivers are not allowed.
+        # TODO: Allow symmetric hysteresis simulations?
+        # TODO: Allow multi-step hysteresis drivers?
 
-    def _write_input_files(self, system, **kwargs):
+    def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
-        tommos_adapter.scripts.write_input_files(self, system, **kwargs)
+        write_input_files(self, system, **kwargs)
 
-    def _call(self, system, runner, verbose=1, **kwargs):
+    def _call(
+        self,
+        system: micromagneticmodel.System,
+        runner: tommos_adapter.tommos_runner.TommosRunner,
+        verbose: int = 1,
+        **kwargs: Any,
+    ) -> None:
+        """Call runner to launch the simulation."""
         if runner is None:
-            runner = tommos_adapter.tommos_runner.TommosRunner()
+            runner = TommosRunner()
         runner.call(
             argstr=system.name,
             verbose=verbose,
@@ -82,12 +93,21 @@ class HysteresisDriver(adapter_base.ExternalDriver):
             glob_name=f"{system.name}*.omf",
         )
 
-    def _schedule_commands(self, system, runner):
+    def _schedule_commands(
+        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+    ) -> list[str]:
         """Get command to add to the schedule script.
 
         Python is used to test/simulate schedule during tests because there typically is no scheduling system
         and Python is always available. Therefore, we return a Python comment that can be added to the schedule
         script without breaking the execution.
+
+        Args:
+            system: Micromagnetic system.
+            runner: Runner object defining the calculator.
+
+        Returns:
+            Python comment to add to the schedule script.
         """
         if runner is None:
             runner = tommos_adapter.TommosRunner()
@@ -96,32 +116,51 @@ class HysteresisDriver(adapter_base.ExternalDriver):
             "# " + runner._call(argstr=self._inputfilename(system), dry_run=True),
         ]
 
-    def _read_data(self, system):
+    def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
 
-        After this function is called, the following attributes are updated:
-        - system.m
+        After this function is called, the state `system.m` is updated.
+
+        Args:
+            system: Micromagnetic system.
         """
         output_files = Path(f"hyst_{system.name}").glob("*.vtu")
         last_output_file = sorted(output_files)[-1]
+        old_state = system.m.copy()
         system.m = pv.read(last_output_file)
+        system.m.cell_data["Js"] = old_state.cell_data["Js"]
 
-        # update table information
-        # system.table = table_from_file("output.csv", x=self._x)  # TODO: update table
+        # TODO: update table information
+        # system.table = table_from_file("output.csv", x=self._x)
 
-    def schedule_kwargs_setup(self, schedule_kwargs):
-        """HysteresisDriver takes no special keyword arguments."""
-        pass
+    def schedule_kwargs_setup(self, schedule_kwargs: dict[str, Any]) -> None:
+        """Check argument for schedule.
 
-    def drive_kwargs_setup(self, drive_kwargs):
-        """MinDriver takes no special keyword arguments."""
-        pass
+        Args:
+            schedule_kwargs: Passed keyword arguments.
+        """
+        self._checkargs(schedule_kwargs)
 
-    def _check_system(self, system):
-        """Checks that the system is well defined."""
+    def drive_kwargs_setup(self, drive_kwargs: dict[str, Any]) -> None:
+        """Check argument for drive.
+
+        Args:
+            drive_kwargs: Passed keyword arguments.
+        """
+        self._checkargs(drive_kwargs)
+
+    def _check_system(self, system: micromagneticmodel.System) -> None:
+        """Check that the system is well defined.
+
+        Args:
+            system: Micromagnetic system.
+
+        Raises:
+            RuntimeError: System's energy is not defined.
+        """
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
 
     @property
-    def _x(self):
+    def _x(self) -> str:
         return "B_hysteresis"

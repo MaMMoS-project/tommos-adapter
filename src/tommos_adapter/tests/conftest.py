@@ -2,8 +2,6 @@
 
 import shlex
 import subprocess
-from pathlib import Path
-from textwrap import dedent
 
 import pytest
 
@@ -20,43 +18,42 @@ def mesh(data_dir):
     return {k: data_dir / f"test.{k}" for k in ["vtu", "npz"]}
 
 
-@pytest.fixture(scope="session")
-@pytest.fixture(scope="session")
-def krn_path(data_dir):
-    krn_path = data_dir / "test.krn"
-    Path(krn_path).write_text(
-        dedent(
-            """\
-            # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
-            0.0 0.0 930000.0 0.0 0.51019464687562 1.4e-12
-            """
-        )
-    )
-    return krn_path
+# @pytest.fixture(scope="session")
+# def krn_path(data_dir):
+#     krn_path = data_dir / "test.krn"
+#     Path(krn_path).write_text(
+#         dedent(
+#             """\
+#             # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
+#             0.0 0.0 930000.0 0.0 0.51019464687562 1.4e-12
+#             """
+#         )
+#     )
+#     return krn_path
 
 
-@pytest.fixture(scope="session")
-def p2_path(data_dir):
-    p2_path = data_dir / "test.p2"
-    Path(p2_path).write_text(
-        dedent(
-            """\
-            [mesh]
-            size = 1e-9
+# @pytest.fixture(scope="session")
+# def p2_path(data_dir):
+#     p2_path = data_dir / "test.p2"
+#     Path(p2_path).write_text(
+#         dedent(
+#             """\
+#             [mesh]
+#             size = 1e-9
 
-            [initial state]
-            mx = 0.0
-            my = 0.0
-            mz = 1.0
+#             [initial state]
+#             mx = 0.0
+#             my = 0.0
+#             mz = 1.0
 
-            [field]
-            hstart = 4.58128078817734
-            hfinal = -4.58128078817734
-            hstep = -0.229064039408867
-            hx = 0.0017453283658983088
-            hy = 0.0
-            hz = 0.9999984769132877
-            """
-        )
-    )
-    return p2_path
+#             [field]
+#             hstart = 4.58128078817734
+#             hfinal = -4.58128078817734
+#             hstep = -0.229064039408867
+#             hx = 0.0017453283658983088
+#             hy = 0.0
+#             hz = 0.9999984769132877
+#             """
+#         )
+#     )
+#     return p2_path
