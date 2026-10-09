@@ -133,8 +133,15 @@ def test_drive_kwargs_setup():
     pass  # TODO: write
 
 
-def test_check_system():
-    pass  # TODO: write
+def test_check_system_missing_energies(state_zero):
+    """Test that the system is not well defined if energies are not defined."""
+    system = mm.System(name="test_invalid_magnetization")
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    system.m = state
+    hd = ta.HysteresisDriver()
+    with pytest.raises(RuntimeError, match="System's energy is not defined"):
+        hd._check_system(system)
 
 
 def test_x():
