@@ -165,10 +165,6 @@ def test_write_input_files_after_checking(state_zero, tmp_path):
     )
 
 
-def test_call():
-    pass  # TODO: write
-
-
 def test_schedule_command():
     pass  # TODO: write
 
