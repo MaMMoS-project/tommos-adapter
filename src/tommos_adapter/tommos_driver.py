@@ -112,8 +112,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = tommos_adapter.TommosRunner()
         return [
-            "# calculator-specific setup, e.g. setting environment variables",
-            "# " + runner._call(argstr=self._inputfilename(system), dry_run=True),
+            "# " + runner._call(argstr=system.name, dry_run=True),
         ]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:

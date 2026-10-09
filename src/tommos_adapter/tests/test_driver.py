@@ -166,7 +166,11 @@ def test_write_input_files_after_checking(state_zero, tmp_path):
 
 
 def test_schedule_command():
-    pass  # TODO: write
+    """Test driver schedule command."""
+    system = mm.System(name="test_schedule_command")
+    hd = ta.HysteresisDriver()
+    tr = ta.TommosRunner()
+    assert hd._schedule_commands(system, tr) == ["# tommos loop test_schedule_command"]
 
 
 def test_schedule_kwargs_setup():
