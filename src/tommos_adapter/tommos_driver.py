@@ -8,9 +8,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
-from micromagneticmodel import adapter_base
 
 from tommos_adapter.scripts import write_input_files
 from tommos_adapter.tommos_runner import TommosRunner
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     import tommos_adapter
 
 
-class HysteresisDriver(adapter_base.ExternalDriver):
+class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
     Examples:
@@ -60,8 +60,8 @@ class HysteresisDriver(adapter_base.ExternalDriver):
         kwargs["hx"] = h[0]
         kwargs["hy"] = h[1]
         kwargs["hz"] = h[2]
-        kwargs["hstart"] = np.vdot(h, np.array(kwargs["Hmin"]))
-        kwargs["hfinal"] = np.vdot(h, np.array(kwargs["Hmax"]))
+        kwargs["hstart"] = np.vdot(h, np.array(kwargs["Hmin"])) * mm.consts.mu0
+        kwargs["hfinal"] = np.vdot(h, np.array(kwargs["Hmax"])) * mm.consts.mu0
         kwargs["hstep"] = (kwargs["hfinal"] - kwargs["hstart"]) / (kwargs["n"] - 1)
 
         # Remove unwanted parameters

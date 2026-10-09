@@ -67,7 +67,7 @@ def write_krn(system: micromagneticmodel.System) -> None:
     Args:
         system: Micromagnetic system.
     """
-    properties = {"Js": 0.0, "A": 0.0, "K1": 0.0, "theta": 0.0, "phi": 0.0}
+    properties = {"Js": 0.0, "A": 0.0, "K": 0.0, "theta": 0.0, "phi": 0.0}
     if "Js" in system.m.cell_data:
         properties["Js"] = np.unique(system.m["Js"]).item()  # only works for singlegrain
         # TODO: generalize for multigrain
