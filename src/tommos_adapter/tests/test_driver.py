@@ -173,12 +173,118 @@ def test_schedule_command():
     assert hd._schedule_commands(system, tr) == ["# tommos loop test_schedule_command"]
 
 
-def test_schedule_kwargs_setup():
-    pass  # TODO: write
+@pytest.mark.parametrize(
+    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
+    [
+        (
+            (-1, 0, 0),
+            (2, 0, 0),
+            6,
+            np.float64(1),
+            np.float64(0),
+            np.float64(0),
+            np.float64(-1),
+            np.float64(2),
+            np.float64(0.6),
+        ),
+        (
+            (1, 0, 0),
+            (-3, 0, 0),
+            5,
+            np.float64(-1),
+            np.float64(0),
+            np.float64(0),
+            np.float64(-1),
+            np.float64(3),
+            np.float64(1),
+        ),
+        (
+            (0, 0, -8),
+            (0, 0, 2),
+            21,
+            np.float64(0),
+            np.float64(0),
+            np.float64(1),
+            np.float64(-8),
+            np.float64(2),
+            np.float64(0.5),
+        ),
+    ],
+)
+def test_schedule_kwargs_setup(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
+    """Test that args are processed when calling `schedule_kwargs_setup`."""
+    kwargs = {
+        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
+        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
+        "n": n,
+    }
+    hd = ta.HysteresisDriver()
+    hd.schedule_kwargs_setup(kwargs)
+    assert kwargs == {
+        "hx": hx,
+        "hy": hy,
+        "hz": hz,
+        "hstart": hstart,
+        "hfinal": hfinal,
+        "hstep": hstep,
+    }
 
 
-def test_drive_kwargs_setup():
-    pass  # TODO: write
+@pytest.mark.parametrize(
+    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
+    [
+        (
+            (-1, 0, 0),
+            (2, 0, 0),
+            6,
+            np.float64(1),
+            np.float64(0),
+            np.float64(0),
+            np.float64(-1),
+            np.float64(2),
+            np.float64(0.6),
+        ),
+        (
+            (1, 0, 0),
+            (-3, 0, 0),
+            5,
+            np.float64(-1),
+            np.float64(0),
+            np.float64(0),
+            np.float64(-1),
+            np.float64(3),
+            np.float64(1),
+        ),
+        (
+            (0, 0, -8),
+            (0, 0, 2),
+            21,
+            np.float64(0),
+            np.float64(0),
+            np.float64(1),
+            np.float64(-8),
+            np.float64(2),
+            np.float64(0.5),
+        ),
+    ],
+)
+def test_drive_kwargs_setup(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
+    """Test that args are processed when calling `drive_kwargs_setup`."""
+    kwargs = {
+        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
+        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
+        "n": n,
+    }
+    hd = ta.HysteresisDriver()
+    hd.drive_kwargs_setup(kwargs)
+    assert kwargs == {
+        "hx": hx,
+        "hy": hy,
+        "hz": hz,
+        "hstart": hstart,
+        "hfinal": hfinal,
+        "hstep": hstep,
+    }
 
 
 def test_check_system_missing_energies(state_zero):
