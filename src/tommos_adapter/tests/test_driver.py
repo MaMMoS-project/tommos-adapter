@@ -1,5 +1,8 @@
 """Test hysteresis driver."""
 
+import os
+from textwrap import dedent
+
 import micromagneticmodel as mm
 import numpy as np
 import pytest
@@ -78,19 +81,40 @@ def test_write_input_files_before_state():
         hd._write_input_files(system)
 
 
-def test_write_input_files_before_checking(state_zero):
+def test_write_input_files_before_checking(state_zero, tmp_path):
     """Check that input writing fails if we do not process the field arguments first."""
     system = mm.System(name="test_write_input_files_before_checking")
     state = state_zero.copy()
-    state.point_data["m"][:, 0] = 1
     system.m = state
     hd = ta.HysteresisDriver()
-    # TODO: set temporary working directory
+    os.chdir(tmp_path)
     hd._write_input_files(system)
-    # TODO: check created npz file exists
-    # TODO: check created krn
-    # TODO: check create p2
-    # TODO: Should we raise an error here?
+    assert (tmp_path / "test_write_input_files_before_checking.npz").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.krn").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.p2").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.krn").read_text() == dedent(
+        """\
+        # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
+        0.0 0.0 0.0 0.0 1.0 0.0"""
+    )
+    assert (tmp_path / "test_write_input_files_before_checking.p2").read_text() == dedent(
+        """\
+        [mesh]
+
+        [initial state]
+        mx = 0.0
+        my = 0.0
+        mz = 0.0
+
+        [field]
+
+        [minimizer]
+
+        [poisson]
+
+        """
+    )
+    # TODO: Should we instead raise an error here?
 
 
 def test_call():
