@@ -34,7 +34,6 @@ def state_zero(mesh):
     state.cell_data["id"] = id_array  # Rename `mat_id` cell data to `id`
     state.cell_data.remove("mat_id")  # remove old data with name `mat_id`
     m = np.zeros((state.n_points, 3), dtype=np.float32)
-    m[:, 2] = 1
     state.point_data["m"] = m
     Js_1_array = np.ones_like(state.n_cells, dtype=np.float32)
     state.cell_data["Js"] = Js_1_array
