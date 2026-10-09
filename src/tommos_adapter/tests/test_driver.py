@@ -316,4 +316,5 @@ def test_check_system_invalid_magnetization(state_zero):
 
 
 def test_x():
-    pass  # TODO: write
+    hd = ta.HysteresisDriver()
+    assert hd._x == "B_hysteresis"
