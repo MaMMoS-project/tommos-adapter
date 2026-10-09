@@ -144,5 +144,22 @@ def test_check_system_missing_energies(state_zero):
         hd._check_system(system)
 
 
+def test_check_system_invalid_magnetization(state_zero):
+    """Test that the system is not well defined if the magnetization is missing or with zero norm."""
+    system = mm.System(name="test_invalid_magnetization")
+    system.energy = mm.Exchange(A=1e-12)
+    hd = ta.HysteresisDriver()
+
+    # magnetization state not given
+    with pytest.raises(RuntimeError, match="Undefined magnetization state"):
+        hd._check_system(system)
+
+    # given magnetization state has zero norm
+    state = state_zero.copy()
+    system.m = state
+    with pytest.raises(RuntimeError, match="Invalid initial magnetization"):
+        hd._check_system(system)
+
+
 def test_x():
     pass  # TODO: write

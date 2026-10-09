@@ -160,6 +160,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
+        if system.m is None:
+            raise RuntimeError(f"Undefined magnetization state in given system {system}.")
+        if (norm := np.linalg.norm(system.m.point_data["m"])) > 0:
+            system.m.point_data["m"] /= norm
+        else:
+            raise RuntimeError(f"Invalid initial magnetization: {system.m.point_data['m']}.")
 
     @property
     def _x(self) -> str:
