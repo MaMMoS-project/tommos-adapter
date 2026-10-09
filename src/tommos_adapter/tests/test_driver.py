@@ -82,7 +82,7 @@ def test_write_input_files_before_state():
 
 
 def test_write_input_files_before_checking(state_zero, tmp_path):
-    """Check that input writing fails if we do not process the field arguments first."""
+    """Check inputs before processing the field arguments."""
     system = mm.System(name="test_write_input_files_before_checking")
     state = state_zero.copy()
     system.m = state
@@ -115,6 +115,54 @@ def test_write_input_files_before_checking(state_zero, tmp_path):
         """
     )
     # TODO: Should we instead raise an error here?
+
+
+def test_write_input_files_after_checking(state_zero, tmp_path):
+    """Check inputs after processing the field arguments."""
+    system = mm.System(name="test_write_input_files_before_checking")
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system.m = state
+    hd = ta.HysteresisDriver()
+    kwargs = {
+        "Hmin": (1 / mm.consts.mu0, 0, 0),
+        "Hmax": (-2 / mm.consts.mu0, 0, 0),
+        "n": 11,
+    }
+    os.chdir(tmp_path)
+    hd._checkargs(kwargs)
+    hd._write_input_files(system, **kwargs)
+    assert (tmp_path / "test_write_input_files_before_checking.npz").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.krn").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.p2").is_file()
+    assert (tmp_path / "test_write_input_files_before_checking.krn").read_text() == dedent(
+        """\
+        # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
+        0.0 0.0 0.0 0.0 1.0 0.0"""
+    )
+    assert (tmp_path / "test_write_input_files_before_checking.p2").read_text() == dedent(
+        """\
+        [mesh]
+
+        [initial state]
+        mx = 0.0
+        my = 0.0
+        mz = 1.0
+
+        [field]
+        hx = -1.0
+        hy = 0.0
+        hz = 0.0
+        hstart = -1.0
+        hfinal = 2.0
+        hstep = 0.3
+
+        [minimizer]
+
+        [poisson]
+
+        """
+    )
 
 
 def test_call():
