@@ -87,6 +87,20 @@ def mesh_data(
 def initial_magnetisation(system: mm.System, *, key: str = "m") -> np.ndarray:
     """Return normalised nodal magnetisation vectors.
 
+    Examples:
+        >>> points = np.array(
+        ...     [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        ... )
+        >>> cells = np.array([4, 0, 1, 2, 3])
+        >>> grid = pv.UnstructuredGrid(cells, [pv.CellType.TETRA], points)
+        >>> grid.point_data["m"] = np.tile((0.0, 0.0, 2.0), (4, 1))
+        >>> system = mm.System(name="example", m=grid)
+        >>> initial_magnetisation(system)
+        array([[0., 0., 1.],
+               [0., 0., 1.],
+               [0., 0., 1.],
+               [0., 0., 1.]])
+
     Args:
         system: Micromagnetic system with a PyVista unstructured grid.
         key: Name of the point-data array containing the magnetisation.
