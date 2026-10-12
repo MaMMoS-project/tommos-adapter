@@ -26,7 +26,7 @@ dependencies = [
   "micromagneticmodel",
   "numpy",
   "pyvista",
-  "tommos",
+  "tommos @ https://github.com/MaMMoS-project/tommos.git",
 ]
 
 [project.urls]
@@ -35,6 +35,9 @@ Documentation = "https://mammos-project.github.io/mammos"
 Repository = "https://github.com/MaMMoS-project/tommos-adapter"
 Issues = "https://github.com/MaMMoS-project/tommos-adapter/issues"
 Changelog = "https://mammos-project.github.io/mammos/changelog"
+
+[tool.hatch.metadata]
+allow-direct-references = true  # remove when tommos is available from PyPI
 
 [tool.ruff]
 target-version = "py311"
@@ -76,6 +79,7 @@ towncrier = "*"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
+micromagneticmodel = { git = "https://github.com/ubermag/micromagneticmodel.git", rev = "edad04e4ad72c949b9b7ea7a92bc5d1ffd204d7f" }
 
 [tool.pixi.tasks]
 examples = "jupyter-lab examples"
