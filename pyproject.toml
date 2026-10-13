@@ -28,7 +28,7 @@ dependencies = [
   "micromagneticmodel @ https://github.com/ubermag/micromagneticmodel.git",
   # "micromagnetictests @ https://github.com/ubermag/micromagnetictests.git",
   # "ubermagtable @ https://github.com/ubermag/ubermagtable.git",
-  "pyvista",
+  "pyvista[all]",
 ]
 
 [project.urls]
