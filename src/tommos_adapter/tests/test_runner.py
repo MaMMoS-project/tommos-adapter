@@ -4,7 +4,7 @@ from tommos_adapter import TommosRunner
 
 
 def test_name():
-    assert TommosRunner().package_name == "Tommos Calculator"
+    assert TommosRunner().package_name == "Tommos"
 
 
 def test_call_dry_run():
