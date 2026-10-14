@@ -111,9 +111,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         for key in ["Hmin", "Hmax"]:
             kwargs.pop(key)
 
-        # For the moment symmetric hysteresis simulations or multi-step drivers are not allowed.
-        # TODO: Allow symmetric hysteresis simulations?
-        # TODO: Allow multi-step hysteresis drivers?
+        # The adapter currently represents one collinear field sweep from Hmin to Hmax.
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""

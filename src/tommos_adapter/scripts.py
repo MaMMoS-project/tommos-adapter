@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import micromagneticmodel as mm
 import numpy as np
+import pyvista as pv
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 if TYPE_CHECKING:
@@ -34,16 +35,24 @@ def write_input_files(
     write_p2(system, **kwargs)
 
 
+def _grid(system: micromagneticmodel.System) -> pv.UnstructuredGrid:
+    """Return the TOMMOS mesh after validating its type."""
+    if not isinstance(system.m, pv.UnstructuredGrid):
+        raise TypeError("TOMMOS requires system.m to be a pyvista.UnstructuredGrid.")
+    return system.m
+
+
 def save_mesh_npz(system: micromagneticmodel.System) -> None:
     """Save mesh in `npz` format.
 
     Args:
         system: Micromagnetic system
     """
-    knt = system.m.points
+    grid = _grid(system)
+    knt = grid.points
     ijk = np.c_[
-        system.m.cell_connectivity.reshape(-1, 4),
-        system.m.get_array("id"),
+        grid.cell_connectivity.reshape(-1, 4),
+        grid.get_array("id"),
     ]
     np.savez(f"{system.name}.npz", knt=knt, ijk=ijk)
 
@@ -67,9 +76,10 @@ def write_krn(system: micromagneticmodel.System) -> None:
     Args:
         system: Micromagnetic system.
     """
+    grid = _grid(system)
     properties = {"Js": 0.0, "A": 0.0, "K": 0.0, "theta": 0.0, "phi": 0.0}
-    if "Js" in system.m.cell_data:
-        properties["Js"] = np.unique(system.m["Js"]).item()  # only works for singlegrain
+    if "Js" in grid.cell_data:
+        properties["Js"] = np.unique(grid["Js"]).item()  # only works for singlegrain
         # TODO: generalize for multigrain
     for energy in system.energy:
         if isinstance(energy, mm.Exchange):
@@ -114,9 +124,11 @@ def write_p2(system: micromagneticmodel.System, **kwargs: dict[str, Any]) -> Non
         system: Micromagnetic system.
         **kwargs: keyword arguments passed to the writing function.
     """
+    grid = _grid(system)
+
     # Evaluate average magnetization
     # TODO: only uniform magnetization is supported
-    average_magnetization = system.m.point_data["m"].sum(axis=0) / system.m.n_points
+    average_magnetization = grid.point_data["m"].sum(axis=0) / grid.n_points
 
     # Create parameter dictionary
     parameters = {

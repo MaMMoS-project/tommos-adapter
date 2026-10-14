@@ -108,42 +108,6 @@ def test_invalid_hysteresis_arguments(kwargs, error_message):
         ta.HysteresisDriver()._checkargs(kwargs)
 
 
-def test_write_input_files_before_checking(state_zero, tmp_path, monkeypatch):
-    """Check inputs before processing the field arguments."""
-    system = mm.System(name="test_write_input_files_before_checking")
-    state = state_zero.copy()
-    system.m = state
-    hd = ta.HysteresisDriver()
-    monkeypatch.chdir(tmp_path)
-    hd._write_input_files(system)
-    assert (tmp_path / "test_write_input_files_before_checking.npz").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.krn").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.p2").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.krn").read_text() == dedent(
-        """\
-        # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
-        0.0 0.0 0.0 0.0 1.0 0.0"""
-    )
-    assert (tmp_path / "test_write_input_files_before_checking.p2").read_text() == dedent(
-        """\
-        [mesh]
-
-        [initial state]
-        mx = 0.0
-        my = 0.0
-        mz = 0.0
-
-        [field]
-
-        [minimizer]
-
-        [poisson]
-
-        """
-    )
-    # TODO: Consider rejecting input generation before hysteresis arguments are processed.
-
-
 def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")

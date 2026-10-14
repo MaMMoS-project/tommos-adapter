@@ -16,12 +16,34 @@ def test_write_input_files(state_zero, tmp_path, monkeypatch):
     """Test that the `write_input_files` script produces the three expected input files."""
     monkeypatch.chdir(tmp_path)
     system = mm.System(name="test_write_input_files")
-    system.m = state_zero.copy()
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system.m = state
+    system.energy = mm.Exchange(A=1e-12)
     driver = ta.HysteresisDriver()
     write_input_files(driver, system)
     assert Path(tmp_path / "test_write_input_files.npz").is_file()
     assert Path(tmp_path / "test_write_input_files.krn").is_file()
     assert Path(tmp_path / "test_write_input_files.p2").is_file()
+
+
+@pytest.mark.parametrize("writer", [save_mesh_npz, write_krn, write_p2])
+def test_writers_require_unstructured_grid(writer, tmp_path, monkeypatch):
+    """Public writer functions reject unsupported magnetization objects clearly."""
+    monkeypatch.chdir(tmp_path)
+    system = mm.examples.macrospin()
+
+    with pytest.raises(TypeError, match=r"pyvista\.UnstructuredGrid"):
+        writer(system)
+
+
+def test_write_input_files_requires_unstructured_grid(tmp_path, monkeypatch):
+    """The combined writer rejects unsupported magnetization objects clearly."""
+    monkeypatch.chdir(tmp_path)
+    system = mm.examples.macrospin()
+
+    with pytest.raises(TypeError, match=r"pyvista\.UnstructuredGrid"):
+        write_input_files(ta.HysteresisDriver(), system)
 
 
 def test_save_npz(state_zero, tmp_path, monkeypatch):
