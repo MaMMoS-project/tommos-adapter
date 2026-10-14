@@ -53,19 +53,57 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     _allowed_attributes = []
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
-        """Check all given argument."""
-        # The next steps assume that the axis between Hmax and Hmin always passes via the origin.
-        H_array = np.array(kwargs["Hmax"])
-        h = H_array / np.linalg.norm(H_array)  # unit vector in the direction of Hmax
-        kwargs["hx"] = h[0]
-        kwargs["hy"] = h[1]
-        kwargs["hz"] = h[2]
-        kwargs["hstart"] = np.vdot(h, np.array(kwargs["Hmin"])) * mm.consts.mu0
-        kwargs["hfinal"] = np.vdot(h, np.array(kwargs["Hmax"])) * mm.consts.mu0
-        kwargs["hstep"] = (kwargs["hfinal"] - kwargs["hstart"]) / (kwargs["n"] - 1)
+        """Validate and convert hysteresis arguments to TOMMOS parameters."""
+        required_arguments = {"Hmin", "Hmax", "n"}
+        if not required_arguments.issubset(kwargs):
+            raise ValueError("Hmin, Hmax, and n must all be provided.")
 
-        # Remove unwanted parameters
-        for key in ["Hmin", "Hmax", "n"]:
+        fields = {}
+        for name in ("Hmin", "Hmax"):
+            try:
+                field = np.asarray(kwargs[name], dtype=float)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"{name} must contain three numeric values.") from error
+            if field.shape != (3,):
+                raise ValueError(f"{name} must contain three numeric values.")
+            if not np.all(np.isfinite(field)):
+                raise ValueError(f"{name} must contain only finite values.")
+            fields[name] = field
+
+        n = kwargs["n"]
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise ValueError(f"n must be an integer, not {type(n).__name__}.")
+        if n < 2:
+            raise ValueError(f"n must be at least 2, got {n}.")
+
+        Hmin = fields["Hmin"]
+        Hmax = fields["Hmax"]
+        field_difference = Hmax - Hmin
+        difference_norm = np.linalg.norm(field_difference)
+        if difference_norm == 0:
+            raise ValueError("Hmin and Hmax must differ.")
+
+        Hmin_norm = np.linalg.norm(Hmin)
+        Hmax_norm = np.linalg.norm(Hmax)
+        if Hmin_norm > 0 and Hmax_norm > 0:
+            relative_cross_product = np.linalg.norm(np.cross(Hmin, Hmax)) / (Hmin_norm * Hmax_norm)
+            if not np.isclose(relative_cross_product, 0, atol=1e-12):
+                raise ValueError("Hmin and Hmax must be collinear with the origin.")
+
+        h = field_difference / difference_norm
+        hstart = float(np.vdot(h, Hmin) * mm.consts.mu0)
+        hfinal = float(np.vdot(h, Hmax) * mm.consts.mu0)
+        kwargs.update(
+            hx=float(h[0]),
+            hy=float(h[1]),
+            hz=float(h[2]),
+            hstart=hstart,
+            hfinal=hfinal,
+            hstep=(hfinal - hstart) / (n - 1),
+        )
+
+        # TOMMOS uses the converted field parameters, but n is retained for progress reporting.
+        for key in ["Hmin", "Hmax"]:
             kwargs.pop(key)
 
         # For the moment symmetric hysteresis simulations or multi-step drivers are not allowed.
@@ -90,7 +128,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             argstr=system.name,
             verbose=verbose,
             total=kwargs.get("n"),
-            glob_name=f"{system.name}*.omf",
+            glob_name=f"hyst_{system.name}/*.vtu",
         )
 
     def _schedule_commands(

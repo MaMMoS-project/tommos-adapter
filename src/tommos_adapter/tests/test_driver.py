@@ -1,6 +1,7 @@
 """Test hysteresis driver."""
 
 from textwrap import dedent
+from unittest.mock import Mock
 
 import micromagneticmodel as mm
 import numpy as np
@@ -51,6 +52,17 @@ def test_allowed_attributes():
             np.float64(2),
             np.float64(0.5),
         ),
+        (
+            (2, 0, 0),
+            (0, 0, 0),
+            3,
+            np.float64(-1),
+            np.float64(0),
+            np.float64(0),
+            np.float64(-2),
+            np.float64(0),
+            np.float64(1),
+        ),
     ],
 )
 @pytest.mark.parametrize("processor", ["_checkargs", "schedule_kwargs_setup", "drive_kwargs_setup"])
@@ -70,7 +82,30 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         "hstart": hstart,
         "hfinal": hfinal,
         "hstep": hstep,
+        "n": n,
     }
+
+
+@pytest.mark.parametrize(
+    "kwargs, error_message",
+    [
+        ({}, "Hmin, Hmax, and n must all be provided"),
+        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0)}, "Hmin, Hmax, and n must all be provided"),
+        ({"Hmin": (-1, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin must contain three numeric values"),
+        ({"Hmin": (-1, 0, 0), "Hmax": (1, np.nan, 0), "n": 3}, "Hmax must contain only finite values"),
+        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 3.0}, "n must be an integer"),
+        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 1}, "n must be at least 2"),
+        ({"Hmin": (1, 0, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin and Hmax must differ"),
+        (
+            {"Hmin": (1, 0, 0), "Hmax": (0, 1, 0), "n": 3},
+            "Hmin and Hmax must be collinear with the origin",
+        ),
+    ],
+)
+def test_invalid_hysteresis_arguments(kwargs, error_message):
+    """Invalid hysteresis arguments must produce helpful errors."""
+    with pytest.raises(ValueError, match=error_message):
+        ta.HysteresisDriver()._checkargs(kwargs)
 
 
 def test_write_input_files_before_checking(state_zero, tmp_path, monkeypatch):
@@ -163,6 +198,21 @@ def test_schedule_command():
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
     assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
+
+
+def test_call_passes_progress_information():
+    """Pass the number and location of TOMMOS snapshots to the runner."""
+    system = mm.System(name="test_progress")
+    runner = Mock()
+
+    ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
+
+    runner.call.assert_called_once_with(
+        argstr="test_progress",
+        verbose=2,
+        total=7,
+        glob_name="hyst_test_progress/*.vtu",
+    )
 
 
 def test_check_system_missing_energies(state_zero):
