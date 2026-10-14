@@ -215,6 +215,89 @@ def test_call_passes_progress_information():
     )
 
 
+def _write_tommos_output(state, output_file, magnetization):
+    """Write a minimal VTU file matching TOMMOS output."""
+    output_state = state.copy()
+    output_state.clear_data()
+    output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
+    output_state.point_data["U"] = np.zeros(state.n_points)
+    output_state.cell_data["mat_id"] = state.cell_data["id"]
+    output_state.save(output_file)
+
+
+def test_read_data_updates_only_magnetization(state_zero, tmp_path, monkeypatch):
+    """Read the last TOMMOS state while retaining user grid metadata."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    state.point_data["custom_point_data"] = np.arange(state.n_points)
+    state.cell_data["region"] = np.arange(state.n_cells)
+    system = mm.System(name="read_data", m=state)
+    original_state = system.m
+    original_id = state.cell_data["id"].copy()
+    original_Js = state.cell_data["Js"].copy()
+    original_region = state.cell_data["region"].copy()
+    original_point_data = state.point_data["custom_point_data"].copy()
+
+    output_directory = tmp_path / "hyst_read_data"
+    output_directory.mkdir()
+    _write_tommos_output(state, output_directory / "state_cfg00010_B+1.0000e+00T.vtu", (0, 1, 0))
+    _write_tommos_output(state, output_directory / "state_cfg00002_B-1.0000e+00T.vtu", (1, 0, 0))
+    monkeypatch.chdir(tmp_path)
+
+    ta.HysteresisDriver()._read_data(system)
+
+    assert system.m is original_state
+    np.testing.assert_array_equal(system.m.point_data["m"], np.tile((0, 1, 0), (state.n_points, 1)))
+    np.testing.assert_array_equal(system.m.point_data["custom_point_data"], original_point_data)
+    np.testing.assert_array_equal(system.m.cell_data["id"], original_id)
+    np.testing.assert_array_equal(system.m.cell_data["Js"], original_Js)
+    np.testing.assert_array_equal(system.m.cell_data["region"], original_region)
+
+
+def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
+    """Missing TOMMOS snapshots produce a helpful error without changing the system."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system = mm.System(name="missing_output", m=state)
+    magnetization_before_read = state.point_data["m"].copy()
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(RuntimeError, match="No TOMMOS VTU output found"):
+        ta.HysteresisDriver()._read_data(system)
+
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
+
+
+@pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
+def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, invalid_output):
+    """Invalid TOMMOS snapshots do not partially update the system."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system = mm.System(name="invalid_output", m=state)
+    magnetization_before_read = state.point_data["m"].copy()
+
+    output_state = state.copy()
+    if invalid_output == "missing_m":
+        output_state.point_data.remove("m")
+        error_message = "does not contain point data 'm'"
+    elif invalid_output == "wrong_shape":
+        output_state.point_data["m"] = np.ones((state.n_points, 2))
+        error_message = "output magnetization has shape"
+    else:
+        output_state.points[0, 0] += 1
+        error_message = "does not match system.m"
+
+    output_directory = tmp_path / "hyst_invalid_output"
+    output_directory.mkdir()
+    output_state.save(output_directory / "state_cfg00000_B+0.0000e+00T.vtu")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(RuntimeError, match=error_message):
+        ta.HysteresisDriver()._read_data(system)
+
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
+
+
 def test_check_system_missing_energies(state_zero):
     """Test that the system is not well defined if energies are not defined."""
     system = mm.System(name="test_invalid_magnetization")
