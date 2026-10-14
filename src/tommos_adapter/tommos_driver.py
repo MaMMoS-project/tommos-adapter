@@ -197,10 +197,24 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError("System's energy is not defined")
         if system.m is None:
             raise RuntimeError(f"Undefined magnetization state in given system {system}.")
-        if (norm := np.linalg.norm(system.m.point_data["m"])) > 0:
-            system.m.point_data["m"] /= norm
-        else:
-            raise RuntimeError(f"Invalid initial magnetization: {system.m.point_data['m']}.")
+        if not isinstance(system.m, pv.UnstructuredGrid):
+            raise TypeError("TOMMOS requires system.m to be a pyvista.UnstructuredGrid.")
+        if "m" not in system.m.point_data:
+            raise RuntimeError("The magnetization array 'm' is missing from system.m.point_data.")
+        for name in ("id", "Js"):
+            if name not in system.m.cell_data:
+                raise RuntimeError(f"The material array '{name}' is missing from system.m.cell_data.")
+
+        magnetization = np.asarray(system.m.point_data["m"])
+        expected_shape = (system.m.n_points, 3)
+        if magnetization.shape != expected_shape:
+            raise RuntimeError(f"The magnetization array 'm' must have shape {expected_shape}.")
+        if not np.all(np.isfinite(magnetization)):
+            raise RuntimeError("The magnetization array 'm' must contain only finite values.")
+
+        magnetization_norm = np.linalg.norm(magnetization, axis=1)
+        if not np.allclose(magnetization_norm, 1, rtol=1e-6, atol=1e-6):
+            raise RuntimeError("The magnetization array 'm' must contain unit vectors at every mesh point.")
 
     @property
     def _x(self) -> str:

@@ -226,21 +226,86 @@ def test_check_system_missing_energies(state_zero):
         hd._check_system(system)
 
 
-def test_check_system_invalid_magnetization(state_zero):
-    """Test that the system is not well defined if the magnetization is missing or with zero norm."""
+def test_check_system_missing_magnetization():
+    """A system without magnetization is invalid."""
     system = mm.System(name="test_invalid_magnetization")
     system.energy = mm.Exchange(A=1e-12)
-    hd = ta.HysteresisDriver()
 
-    # magnetization state not given
     with pytest.raises(RuntimeError, match="Undefined magnetization state"):
-        hd._check_system(system)
+        ta.HysteresisDriver()._check_system(system)
 
-    # given magnetization state has zero norm
+
+def test_check_system_requires_unstructured_grid():
+    """TOMMOS does not accept a discretisedfield magnetization."""
+    system = mm.examples.macrospin()
+
+    with pytest.raises(TypeError, match=r"pyvista\.UnstructuredGrid"):
+        ta.HysteresisDriver()._check_system(system)
+
+
+@pytest.mark.parametrize(
+    "association, name, error_message",
+    [
+        ("point_data", "m", "magnetization array 'm' is missing"),
+        ("cell_data", "id", "material array 'id' is missing"),
+        ("cell_data", "Js", "material array 'Js' is missing"),
+    ],
+)
+def test_check_system_requires_grid_data(state_zero, association, name, error_message):
+    """All arrays needed to create TOMMOS inputs must be present."""
     state = state_zero.copy()
-    system.m = state
-    with pytest.raises(RuntimeError, match="Invalid initial magnetization"):
-        hd._check_system(system)
+    state.point_data["m"][:, 0] = 1
+    getattr(state, association).remove(name)
+    system = mm.System(name="test_missing_grid_data", energy=mm.Exchange(A=1e-12), m=state)
+
+    with pytest.raises(RuntimeError, match=error_message):
+        ta.HysteresisDriver()._check_system(system)
+
+
+def test_check_system_magnetization_shape(state_zero):
+    """Magnetization must contain one three-dimensional vector per point."""
+    state = state_zero.copy()
+    state.point_data["m"] = np.ones((state.n_points, 2))
+    system = mm.System(name="test_invalid_shape", energy=mm.Exchange(A=1e-12), m=state)
+
+    with pytest.raises(RuntimeError, match="must have shape"):
+        ta.HysteresisDriver()._check_system(system)
+
+
+def test_check_system_finite_magnetization(state_zero):
+    """Magnetization values must be finite."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    state.point_data["m"][0, 0] = np.nan
+    system = mm.System(name="test_non_finite_m", energy=mm.Exchange(A=1e-12), m=state)
+
+    with pytest.raises(RuntimeError, match="must contain only finite values"):
+        ta.HysteresisDriver()._check_system(system)
+
+
+@pytest.mark.parametrize("value", [0, 2])
+def test_check_system_normalized_magnetization(state_zero, value):
+    """Magnetization must be normalized and is not modified during validation."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = value
+    magnetization_before_check = state.point_data["m"].copy()
+    system = mm.System(name="test_non_normalized_m", energy=mm.Exchange(A=1e-12), m=state)
+
+    with pytest.raises(RuntimeError, match="must contain unit vectors"):
+        ta.HysteresisDriver()._check_system(system)
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_check)
+
+
+def test_check_system_does_not_modify_valid_system(state_zero):
+    """Validation accepts pointwise-normalized magnetization without changing it."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    magnetization_before_check = state.point_data["m"].copy()
+    system = mm.System(name="test_valid_system", energy=mm.Exchange(A=1e-12), m=state)
+
+    ta.HysteresisDriver()._check_system(system)
+
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_check)
 
 
 def test_x():
