@@ -1,6 +1,5 @@
 """Test scripts submodule."""
 
-import os
 from pathlib import Path
 from textwrap import dedent
 
@@ -13,9 +12,9 @@ import tommos_adapter as ta
 from tommos_adapter.scripts import save_mesh_npz, write_input_files, write_krn, write_p2
 
 
-def test_write_input_files(state_zero, tmp_path):
+def test_write_input_files(state_zero, tmp_path, monkeypatch):
     """Test that the `write_input_files` script produces the three expected input files."""
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     system = mm.System(name="test_write_input_files")
     system.m = state_zero.copy()
     driver = ta.HysteresisDriver()
@@ -25,22 +24,22 @@ def test_write_input_files(state_zero, tmp_path):
     assert Path(tmp_path / "test_write_input_files.p2").is_file()
 
 
-def test_save_npz(state_zero, tmp_path):
+def test_save_npz(state_zero, tmp_path, monkeypatch):
     """Test the generate `npz` mesh.
 
     We only check that the saved mesh has the same number of points and cells of the system mesh.
     - `knt` collects the coordinates of all mesh points.
     - `ijk` collects collectivity + region ID for each tetrahedron.
     """
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     system = mm.System(name="test_save_npz")
     system.m = state_zero.copy()
     save_mesh_npz(system)
-    assert Path(tmp_path / "test_save_npz.npz")
-    mesh = np.load(tmp_path / "test_save_npz.npz")
-    assert "knt" in mesh and "ijk" in mesh
-    assert mesh["knt"].shape == (system.m.n_points, 3)
-    assert mesh["ijk"].shape == (system.m.n_cells, 5)
+    assert (tmp_path / "test_save_npz.npz").is_file()
+    with np.load(tmp_path / "test_save_npz.npz") as mesh:
+        assert "knt" in mesh and "ijk" in mesh
+        assert mesh["knt"].shape == (system.m.n_points, 3)
+        assert mesh["ijk"].shape == (system.m.n_cells, 5)
 
 
 @pytest.mark.parametrize(
@@ -50,9 +49,9 @@ def test_save_npz(state_zero, tmp_path):
         (1.76, 1e-12, 4e5, 0.0, 0.0),
     ],
 )
-def test_write_krn(Js, A, K, theta, phi, state_zero, tmp_path):
+def test_write_krn(Js, A, K, theta, phi, state_zero, tmp_path, monkeypatch):
     """Test script creating `krn` input file."""
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     system = mm.System(name="test_write_krn")
     state = state_zero.copy()
     state.cell_data["Js"] *= Js
@@ -99,9 +98,9 @@ def test_write_krn(Js, A, K, theta, phi, state_zero, tmp_path):
         ),
     ],
 )
-def test_write_p2(size, m, hx, hy, hz, hstart, hfinal, hstep, max_iter, cg_tol, state_zero, tmp_path):
+def test_write_p2(size, m, hx, hy, hz, hstart, hfinal, hstep, max_iter, cg_tol, state_zero, tmp_path, monkeypatch):
     """Test script creating `p2` input file."""
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     system = mm.System(name="test_write_p2")
     state = state_zero.copy()
     m_array = np.array(m, dtype=np.float32) / np.linalg.norm(m)

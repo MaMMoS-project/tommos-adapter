@@ -12,7 +12,7 @@ class TommosRunner(adapter_base.ExternalRunner):
     @property
     def package_name(self) -> str:
         """Name of the calculator."""
-        return "Tommos Calculator"
+        return "Tommos"
 
     def _call(self, argstr: str, need_stderr: bool = False, dry_run: bool = False) -> subprocess.CompletedProcess:
         """Call the external calcualtor in a subprocess.

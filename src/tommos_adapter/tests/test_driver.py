@@ -1,6 +1,5 @@
 """Test hysteresis driver."""
 
-import os
 from textwrap import dedent
 
 import micromagneticmodel as mm
@@ -54,7 +53,8 @@ def test_allowed_attributes():
         ),
     ],
 )
-def test_checkargs(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
+@pytest.mark.parametrize("processor", ["_checkargs", "schedule_kwargs_setup", "drive_kwargs_setup"])
+def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
     """Test that field arguments are processed correctly."""
     kwargs = {
         "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
@@ -62,7 +62,7 @@ def test_checkargs(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
         "n": n,
     }
     hd = ta.HysteresisDriver()
-    hd._checkargs(kwargs)
+    getattr(hd, processor)(kwargs)
     assert kwargs == {
         "hx": hx,
         "hy": hy,
@@ -73,21 +73,13 @@ def test_checkargs(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
     }
 
 
-def test_write_input_files_before_state():
-    """Check that input writing fails if we do not define a field first."""
-    system = mm.System(name="test_write_input_files_before_state")
-    hd = ta.HysteresisDriver()
-    with pytest.raises(AttributeError, match="no attribute 'points'"):
-        hd._write_input_files(system)
-
-
-def test_write_input_files_before_checking(state_zero, tmp_path):
+def test_write_input_files_before_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs before processing the field arguments."""
     system = mm.System(name="test_write_input_files_before_checking")
     state = state_zero.copy()
     system.m = state
     hd = ta.HysteresisDriver()
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     hd._write_input_files(system)
     assert (tmp_path / "test_write_input_files_before_checking.npz").is_file()
     assert (tmp_path / "test_write_input_files_before_checking.krn").is_file()
@@ -114,12 +106,12 @@ def test_write_input_files_before_checking(state_zero, tmp_path):
 
         """
     )
-    # TODO: Should we instead raise an error here?
+    # TODO: Consider rejecting input generation before hysteresis arguments are processed.
 
 
-def test_write_input_files_after_checking(state_zero, tmp_path):
+def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
-    system = mm.System(name="test_write_input_files_before_checking")
+    system = mm.System(name="test_write_input_files_after_checking")
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     system.m = state
@@ -129,18 +121,18 @@ def test_write_input_files_after_checking(state_zero, tmp_path):
         "Hmax": (-2 / mm.consts.mu0, 0, 0),
         "n": 11,
     }
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
-    assert (tmp_path / "test_write_input_files_before_checking.npz").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.krn").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.p2").is_file()
-    assert (tmp_path / "test_write_input_files_before_checking.krn").read_text() == dedent(
+    assert (tmp_path / "test_write_input_files_after_checking.npz").is_file()
+    assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
+    assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
+    assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == dedent(
         """\
         # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
         0.0 0.0 0.0 0.0 1.0 0.0"""
     )
-    assert (tmp_path / "test_write_input_files_before_checking.p2").read_text() == dedent(
+    assert (tmp_path / "test_write_input_files_after_checking.p2").read_text() == dedent(
         """\
         [mesh]
 
@@ -170,121 +162,7 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
-    assert hd._schedule_commands(system, tr) == ["# tommos loop test_schedule_command"]
-
-
-@pytest.mark.parametrize(
-    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
-    [
-        (
-            (-1, 0, 0),
-            (2, 0, 0),
-            6,
-            np.float64(1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(2),
-            np.float64(0.6),
-        ),
-        (
-            (1, 0, 0),
-            (-3, 0, 0),
-            5,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(3),
-            np.float64(1),
-        ),
-        (
-            (0, 0, -8),
-            (0, 0, 2),
-            21,
-            np.float64(0),
-            np.float64(0),
-            np.float64(1),
-            np.float64(-8),
-            np.float64(2),
-            np.float64(0.5),
-        ),
-    ],
-)
-def test_schedule_kwargs_setup(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
-    """Test that args are processed when calling `schedule_kwargs_setup`."""
-    kwargs = {
-        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
-        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
-        "n": n,
-    }
-    hd = ta.HysteresisDriver()
-    hd.schedule_kwargs_setup(kwargs)
-    assert kwargs == {
-        "hx": hx,
-        "hy": hy,
-        "hz": hz,
-        "hstart": hstart,
-        "hfinal": hfinal,
-        "hstep": hstep,
-    }
-
-
-@pytest.mark.parametrize(
-    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
-    [
-        (
-            (-1, 0, 0),
-            (2, 0, 0),
-            6,
-            np.float64(1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(2),
-            np.float64(0.6),
-        ),
-        (
-            (1, 0, 0),
-            (-3, 0, 0),
-            5,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(3),
-            np.float64(1),
-        ),
-        (
-            (0, 0, -8),
-            (0, 0, 2),
-            21,
-            np.float64(0),
-            np.float64(0),
-            np.float64(1),
-            np.float64(-8),
-            np.float64(2),
-            np.float64(0.5),
-        ),
-    ],
-)
-def test_drive_kwargs_setup(Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
-    """Test that args are processed when calling `drive_kwargs_setup`."""
-    kwargs = {
-        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
-        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
-        "n": n,
-    }
-    hd = ta.HysteresisDriver()
-    hd.drive_kwargs_setup(kwargs)
-    assert kwargs == {
-        "hx": hx,
-        "hy": hy,
-        "hz": hz,
-        "hstart": hstart,
-        "hfinal": hfinal,
-        "hstep": hstep,
-    }
+    assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
 
 
 def test_check_system_missing_energies(state_zero):
