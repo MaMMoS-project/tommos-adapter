@@ -25,8 +25,12 @@ if TYPE_CHECKING:
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule`
+    using ``Hmin``, ``Hmax``, and ``n``. Field vectors are specified in A/m and
+    must lie on a common axis through the origin.
+
     Examples:
-        1. Defining driver with a keyword argument.
+        1. Defining a driver.
 
         >>> import tommos_adapter as ta
         ...
@@ -135,18 +139,14 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     def _schedule_commands(
         self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
     ) -> list[str]:
-        """Get command to add to the schedule script.
-
-        Python is used to test/simulate schedule during tests because there typically is no scheduling system
-        and Python is always available. Therefore, we return a Python comment that can be added to the schedule
-        script without breaking the execution.
+        """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
 
         Returns:
-            Python comment to add to the schedule script.
+            Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = tommos_adapter.TommosRunner()
@@ -206,18 +206,30 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         # system.table = table_from_file("output.csv", x=self._x)
 
     def schedule_kwargs_setup(self, schedule_kwargs: dict[str, Any]) -> None:
-        """Check argument for schedule.
+        """Validate and convert hysteresis arguments for a scheduled run.
 
         Args:
-            schedule_kwargs: Passed keyword arguments.
+            schedule_kwargs: Arguments containing the starting field ``Hmin``
+                in A/m, final field ``Hmax`` in A/m, and number of field
+                points ``n``.
+
+        Raises:
+            ValueError: If arguments are missing or do not define a valid
+                collinear field sweep.
         """
         self._checkargs(schedule_kwargs)
 
     def drive_kwargs_setup(self, drive_kwargs: dict[str, Any]) -> None:
-        """Check argument for drive.
+        """Validate and convert hysteresis arguments for a direct run.
 
         Args:
-            drive_kwargs: Passed keyword arguments.
+            drive_kwargs: Arguments containing the starting field ``Hmin`` in
+                A/m, final field ``Hmax`` in A/m, and number of field points
+                ``n``.
+
+        Raises:
+            ValueError: If arguments are missing or do not define a valid
+                collinear field sweep.
         """
         self._checkargs(drive_kwargs)
 
@@ -228,7 +240,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             system: Micromagnetic system.
 
         Raises:
-            RuntimeError: System's energy is not defined.
+            TypeError: If ``system.m`` is not a PyVista unstructured grid.
+            RuntimeError: If energy, magnetization, or required grid data are
+                missing or invalid.
         """
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")

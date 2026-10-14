@@ -39,6 +39,5 @@ def test_align_external_field(state_zero, tmp_path, sign):
 
     # Read final magnetization
     mag_array = system.m.get_array("m")
-    avg_magnetization = sum(mag_array) / mag_array.shape[0]
-    avg_magnetization /= np.linalg.norm(avg_magnetization)
-    np.testing.assert_allclose(avg_magnetization[0], sign)
+    average_magnetization = np.mean(mag_array, axis=0)
+    np.testing.assert_allclose(average_magnetization[0], sign)
