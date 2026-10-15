@@ -1,3 +1,5 @@
+"""Tests for the TOMMOS input translation functions."""
+
 import configparser
 import io
 
@@ -11,6 +13,7 @@ from tommos_adapter import scripts
 
 @pytest.fixture
 def system():
+    """Return a two-region tetrahedral test system."""
     points = np.array(
         [
             [0.0, 0.0, 0.0],
@@ -42,6 +45,7 @@ def system():
 
 
 def test_mesh_data_scales_points_and_remaps_regions(system):
+    """Mesh translation scales coordinates and remaps region identifiers."""
     data = scripts.mesh_data(system, mesh_unit=1e-9)
 
     assert data.keys() == {"knt", "ijk"}
@@ -51,6 +55,7 @@ def test_mesh_data_scales_points_and_remaps_regions(system):
 
 
 def test_krn_script_translates_regional_materials(system):
+    """Material translation preserves region-dependent parameters."""
     table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
 
     assert table.shape == (2, 6)
@@ -64,6 +69,7 @@ def test_krn_script_translates_regional_materials(system):
 
 
 def test_krn_script_matches_known_example(system):
+    """KRN translation matches a known TOMMOS input file."""
     expected = (
         "0 0 1000000 0 1.2566370614359172 9.9999999999999994e-12\n"
         "1.5707963267948966 0 200000 0 0.62831853071795862 4.9999999999999997e-12\n"
@@ -73,6 +79,7 @@ def test_krn_script_matches_known_example(system):
 
 
 def test_p2_script_creates_single_field_step(system):
+    """P2 translation represents one applied-field step."""
     config = configparser.ConfigParser()
     config.read_string(scripts.p2_script(system, max_iter=1000, tol_fun=1e-8, eps_a="auto"))
 
@@ -89,6 +96,7 @@ def test_p2_script_creates_single_field_step(system):
 
 
 def test_p2_script_uses_restart_for_nonuniform_m(system):
+    """A nonuniform initial state selects the restart representation."""
     system.m.point_data["m"][-1] = (1.0, 0.0, 0.0)
 
     config = configparser.ConfigParser()
@@ -100,6 +108,7 @@ def test_p2_script_uses_restart_for_nonuniform_m(system):
 
 
 def test_krn_script_rejects_missing_demag(system):
+    """Systems must declare the demagnetisation energy TOMMOS computes."""
     system.energy = mm.Exchange(A=1e-11)
 
     with pytest.raises(ValueError, match="always computes demagnetisation"):
