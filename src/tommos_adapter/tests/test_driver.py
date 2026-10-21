@@ -109,6 +109,19 @@ def test_invalid_hysteresis_arguments(kwargs, error_message):
         ta.HysteresisDriver()._checkargs(kwargs)
 
 
+def test_invalid_temperature(state_zero):
+    """Raise error on temperature different than zero."""
+    system = mm.System(name="wrong_temperature")
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system.m = state
+    system.energy = mm.Demag()
+    system.T = 300.0
+    hd = ta.HysteresisDriver()
+    with pytest.raises(RuntimeError, match="`tommos` supports only T=0 K. Given temperature: 300.0 K"):
+        hd._check_system(system)
+
+
 def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")
