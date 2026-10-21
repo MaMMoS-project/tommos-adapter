@@ -160,7 +160,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
-            runner = tommos_adapter.TommosRunner()
+            runner = TommosRunner()
         return [runner._call(argstr=system.name, dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
