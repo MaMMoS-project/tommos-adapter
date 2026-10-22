@@ -244,6 +244,7 @@ def p2_script(
     mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
     mstep: float | None = None,
+    method: str = "",
     tol_fun: float | None = None,
     eps_a: float | str | None = None,
 ) -> str:
@@ -265,6 +266,7 @@ def p2_script(
         max_iter: Optional maximum number of minimiser iterations.
         mstep: Magnetization change threshold for saving ``.vtu`` snapshots. Setting this to a very large value
             (e.g. 10000) prevents VTU outputs to save disk space.
+        method: Energy minimization algorithm. Possible choices: ``pcohen_hs``, ``tr``.
         tol_fun: Optional relative energy tolerance.
         eps_a: Optional absolute tangent-gradient tolerance or ``"auto"``.
 
@@ -279,6 +281,8 @@ def p2_script(
         raise ValueError(f"tol_fun must be a positive finite number, got {tol_fun!r}.")
     if mstep is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
         raise ValueError(f"mstep must be a positive finite number, got {mstep!r}.")
+    if method != "" and (not isinstance(method, str) or method not in ["pcohen_hs", "tr"]):
+        raise ValueError(f"method must be a string between 'pcohen_hs' and 'tr', got {method!r}.")
 
     _energy_terms(system)
     direction = _field_direction(hx, hy, hz)
@@ -323,6 +327,8 @@ def p2_script(
         lines.append(f"mstep = {mstep}")
 
     minimizer_lines = []
+    if method != "":
+        minimizer_lines.append(f"method = {method}")
     if max_iter is not None:
         minimizer_lines.append(f"max_iter = {max_iter}")
     if tol_fun is not None:

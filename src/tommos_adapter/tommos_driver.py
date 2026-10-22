@@ -55,7 +55,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = ["mstep", "max_iter", "tol_fun", "eps_a"]
+    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""

@@ -10,9 +10,9 @@ import tommos_adapter as ta
 
 
 def test_allowed_attributes():
-    assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "max_iter", "tol_fun", "eps_a"]
-    driver = ta.HysteresisDriver(mstep=1, max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    assert dict(driver) == {"mstep": 1, "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
+    assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    assert dict(driver) == {"mstep": 1, "method": "tr", "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
     with pytest.raises(AttributeError, match="Invalid attribute key"):
         ta.HysteresisDriver(unexpected_argument=1)
 
@@ -116,7 +116,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     state.point_data["m"][:, 2] = 1
     system.m = state
     system.energy = mm.Demag()
-    hd = ta.HysteresisDriver(mstep=1, max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
     kwargs = {
         "Hmin": (1 / mm.consts.mu0, 0, 0),
         "Hmax": (-2 / mm.consts.mu0, 0, 0),
@@ -139,6 +139,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert "hfinal = 2" in p2_text
     assert "hstep = 0.29999999999999999" in p2_text
     assert "mstep = 1" in p2_text
+    assert "method = tr" in p2_text
     assert "max_iter = 1000" in p2_text
     assert "tol_fun = 1e-08" in p2_text
     assert "eps_a = auto" in p2_text
