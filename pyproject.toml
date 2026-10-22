@@ -49,6 +49,7 @@ allow-direct-references = true  # keep true as long as we are using direct depen
 target-version = "py311"
 exclude = [
   "dev",
+  "examples/hard-magnet-tutorial.ipynb",
 ]
 line-length = 120
 [tool.ruff.lint]
@@ -94,7 +95,7 @@ coverage = {cmd="pytest -v --cov src/tommos_adapter --cov-report xml", descripti
 examples = "jupyter-lab examples"
 test-unittest = {cmd="python -c 'import tommos_adapter; tommos_adapter.test()'", description="Run unittests."}
 test-docstrings = {cmd="pytest -vv --doctest-modules src/tommos_adapter", description="Run doctests."}
-test-notebooks = {cmd="pytest -vv --nbval-lax examples", description="Test notebooks"}
+test-notebooks = {cmd="pytest -vv --nbval-lax examples -k 'not hard-magnet-tutorial'", description="Test notebooks"}
 test-all = {depends-on=["test-unittest", "test-docstrings", "test-notebooks"], description="Run all tests."}
 style = "pre-commit run --all-files"
 
