@@ -1,5 +1,6 @@
 """Test hysteresis driver."""
 
+from pathlib import Path
 from unittest.mock import Mock
 
 import micromagneticmodel as mm
@@ -7,6 +8,8 @@ import numpy as np
 import pytest
 
 import tommos_adapter as ta
+
+SAMPLE_TABLE = Path(__file__).parent / "test_sample" / "mammos_hysteresis.csv"
 
 
 def test_allowed_attributes():
@@ -177,8 +180,8 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-def test_read_data_updates_only_magnetization(state_zero, tmp_path, monkeypatch):
-    """Read the last TOMMOS state while retaining user grid metadata."""
+def test_read_data_updates_system(state_zero, tmp_path, monkeypatch):
+    """Read the last TOMMOS state and table while retaining grid metadata."""
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     state.point_data["custom_point_data"] = np.arange(state.n_points)
@@ -194,6 +197,7 @@ def test_read_data_updates_only_magnetization(state_zero, tmp_path, monkeypatch)
     output_directory.mkdir()
     _write_tommos_output(state, output_directory / "state_cfg00010_B+1.0000e+00T.vtu", (0, 1, 0))
     _write_tommos_output(state, output_directory / "state_cfg00002_B-1.0000e+00T.vtu", (1, 0, 0))
+    (output_directory / "mammos_hysteresis.csv").write_text(SAMPLE_TABLE.read_text())
     monkeypatch.chdir(tmp_path)
 
     ta.HysteresisDriver()._read_data(system)
@@ -204,6 +208,26 @@ def test_read_data_updates_only_magnetization(state_zero, tmp_path, monkeypatch)
     np.testing.assert_array_equal(system.m.cell_data["region_id"], original_region_id)
     np.testing.assert_array_equal(system.m.cell_data["Ms"], original_Ms)
     np.testing.assert_array_equal(system.m.cell_data["region"], original_region)
+    assert system.table.x == "B_hysteresis"
+    np.testing.assert_allclose(system.table.data["B_hysteresis"], (-1, 0, 1))
+
+
+def test_read_data_requires_table(state_zero, tmp_path, monkeypatch):
+    """Missing tabular output does not partially update the system."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system = mm.System(name="missing_table", m=state)
+    magnetization_before_read = state.point_data["m"].copy()
+
+    output_directory = tmp_path / "hyst_missing_table"
+    output_directory.mkdir()
+    _write_tommos_output(state, output_directory / "state_cfg00000_B+0.0000e+00T.vtu", (0, 1, 0))
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(RuntimeError, match="Cannot read TOMMOS table"):
+        ta.HysteresisDriver()._read_data(system)
+
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
 def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
