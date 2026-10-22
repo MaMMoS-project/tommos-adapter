@@ -243,6 +243,7 @@ def p2_script(
     hstep: Real,
     mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
+    mstep: float | None = None,
     tol_fun: float | None = None,
     eps_a: float | str | None = None,
 ) -> str:
@@ -262,6 +263,8 @@ def p2_script(
         hstep: Applied-field step in tesla.
         mesh_unit: Physical length in metres represented by one mesh unit.
         max_iter: Optional maximum number of minimiser iterations.
+        mstep: Magnetization change threshold for saving ``.vtu`` snapshots. Setting this to a very large value
+            (e.g. 10000) prevents VTU outputs to save disk space.
         tol_fun: Optional relative energy tolerance.
         eps_a: Optional absolute tangent-gradient tolerance or ``"auto"``.
 
@@ -274,6 +277,8 @@ def p2_script(
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
         raise ValueError(f"tol_fun must be a positive finite number, got {tol_fun!r}.")
+    if mstep is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
+        raise ValueError(f"mstep must be a positive finite number, got {mstep!r}.")
 
     _energy_terms(system)
     direction = _field_direction(hx, hy, hz)
@@ -314,6 +319,8 @@ def p2_script(
             f"hz = {_format_number(hz)}",
         )
     )
+    if mstep is not None:
+        lines.append(f"mstep = {mstep}")
 
     minimizer_lines = []
     if max_iter is not None:
