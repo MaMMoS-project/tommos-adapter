@@ -147,8 +147,8 @@ def test_schedule_command():
     """Test driver schedule command."""
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
-    tr = ta.TommosRunner()
-    assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
+    tr = ta.TommosRunner(command=["pixi", "run", "-e", "cuda", "tommos"])
+    assert hd._schedule_commands(system, tr) == ["pixi run -e cuda tommos loop test_schedule_command"]
 
 
 def test_call_passes_progress_information():
