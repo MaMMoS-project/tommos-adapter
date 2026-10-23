@@ -260,6 +260,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
+        for energy in system.energy:
+            if isinstance(energy, mm.Demag) and hasattr(energy, "asymptotic_radius"):
+                raise RuntimeError(
+                    f"Attribute `asymptotic_radius` is not supported. Given value: {energy.asymptotic_radius}."
+                )
+
         if system.m is None:
             raise RuntimeError(f"Undefined magnetization state in given system {system}.")
         if not isinstance(system.m, pv.UnstructuredGrid):

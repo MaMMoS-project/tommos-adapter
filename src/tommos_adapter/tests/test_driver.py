@@ -265,6 +265,18 @@ def test_check_system_missing_energies(state_zero):
         hd._check_system(system)
 
 
+def test_check_system_energies_unsupported_parameters(state_zero):
+    """Test that the system energies raise errors on unsupported parameters."""
+    system = mm.System(name="test_unsupported_parameters")
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    system.m = state
+    system.energy = mm.Demag(asymptotic_radius=3)
+    hd = ta.HysteresisDriver()
+    with pytest.raises(RuntimeError, match="Attribute `asymptotic_radius` is not supported."):
+        hd._check_system(system)
+
+
 def test_check_system_missing_magnetization():
     """A system without magnetization is invalid."""
     system = mm.System(name="test_invalid_magnetization")
