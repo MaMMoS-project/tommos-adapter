@@ -69,6 +69,11 @@ pydocstyle.convention = "google"
 "*.ipynb" = ["B018"]  # "Found useless expression. Either assign it to a variable or remove it."; false positives when using implicit __repr__ in the notebook
 "src/tommos_adapter/tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
 
+[tool.pytest.ini_options]
+markers = [
+  "regression: run an external TOMMOS simulation against a physical reference result",
+]
+
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
 platforms = [ "osx-arm64", "linux-64", "osx-64" ]
@@ -91,12 +96,13 @@ tommos-adapter = { path = ".", editable = true }
 
 [tool.pixi.tasks]
 build-dists = {cmd="rm -rf dist && hatch build -t sdist -t wheel && twine check dist/*", description="Build and check sdist and wheel."}
-coverage = {cmd="pytest -v --cov src/tommos_adapter --cov-report xml", description="Run unittests with coverage."}
+coverage = {cmd="pytest -v --cov src/tommos_adapter --cov-report xml -m 'not regression'", description="Run unittests with coverage."}
 examples = "jupyter-lab examples"
-test-unittest = {cmd="python -c 'import tommos_adapter; tommos_adapter.test()'", description="Run unittests."}
-test-docstrings = {cmd="pytest -vv --doctest-modules src/tommos_adapter", description="Run doctests."}
+test-unittest = {cmd="pytest -v --pyargs tommos_adapter -l -m 'not regression'", description="Run unittests."}
+test-regression = {cmd="pytest -v --pyargs tommos_adapter -l -m regression", description="Run TOMMOS regression tests."}
+test-docstrings = {cmd="pytest -vv --doctest-modules src/tommos_adapter -m 'not regression'", description="Run doctests."}
 test-notebooks = {cmd="pytest -vv --nbval-lax examples -k 'not hard-magnet-tutorial'", description="Test notebooks"}
-test-all = {depends-on=["test-unittest", "test-docstrings", "test-notebooks"], description="Run all tests."}
+test-all = {depends-on=["test-unittest", "test-regression", "test-docstrings", "test-notebooks"], description="Run all tests."}
 style = "pre-commit run --all-files"
 
 [tool.towncrier]
