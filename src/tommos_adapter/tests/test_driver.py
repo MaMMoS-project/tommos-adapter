@@ -151,6 +151,7 @@ def test_schedule_command():
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
     assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
+    assert hd._schedule_commands(system, None) == ["tommos loop test_schedule_command"]
 
 
 def test_call_passes_progress_information():
