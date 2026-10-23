@@ -240,7 +240,7 @@ def p2_script(
     hz: Real,
     hstart: Real,
     hfinal: Real,
-    hstep: Real,
+    hstep: Real | None = None,
     mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
     tol_fun: float | None = None,
@@ -281,8 +281,6 @@ def p2_script(
     for name, value in field_values.items():
         if not isinstance(value, Real) or not np.isfinite(value):
             raise ValueError(f"{name} must be a finite number, got {value!r}.")
-    if hstep == 0:
-        raise ValueError("hstep must be non-zero.")
 
     magnetisation = initial_magnetisation(system)
     if needs_initial_state_file(system):
@@ -413,7 +411,7 @@ def _as_string(value: object) -> str:
 
 
 def _energy_terms(system: mm.System) -> dict[type, object]:
-    supported = (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag)
+    supported = (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag, mm.Zeeman)
     result = {}
     for term in system.energy:
         if not isinstance(term, supported):
