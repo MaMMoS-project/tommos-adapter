@@ -1,0 +1,1 @@
+"""Test relaxation via `MinDriver`."""
