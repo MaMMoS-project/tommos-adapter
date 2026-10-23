@@ -24,6 +24,8 @@ jobs:
       uses: prefix-dev/setup-pixi@v0.10.2
     - name: unit tests
       run: pixi run test-unittest
+    - name: regression tests
+      run: pixi run test-regression
     - name: doc tests
       run: pixi run test-docstrings
     - name: Test examples
