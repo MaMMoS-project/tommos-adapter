@@ -111,8 +111,6 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         for key in ["Hmin", "Hmax"]:
             kwargs.pop(key)
 
-        # The adapter currently represents one collinear field sweep from Hmin to Hmax.
-
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
