@@ -3,6 +3,7 @@
 import sys
 from unittest.mock import Mock
 
+import discretisedfield as df
 import micromagneticmodel as mm
 import numpy as np
 import pytest
@@ -12,8 +13,8 @@ import tommos_adapter as ta
 
 def test_allowed_attributes():
     assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
-    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    assert dict(driver) == {"mstep": 1, "method": "tr", "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
+    driver = ta.HysteresisDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    assert dict(driver) == {"max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
     with pytest.raises(AttributeError, match="Invalid attribute key"):
         ta.HysteresisDriver(unexpected_argument=1)
 
@@ -85,6 +86,15 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         "hfinal": hfinal,
         "hstep": hstep,
         "n": n,
+    }
+    system = mm.System(name="empty_system")
+    assert hd._get_required_p2_arguments(system, kwargs) == {
+        "hx": hx,
+        "hy": hy,
+        "hz": hz,
+        "hstart": hstart,
+        "hfinal": hfinal,
+        "hstep": hstep,
     }
 
 
@@ -277,13 +287,46 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
 
 def test_check_system_missing_energies(state_zero):
     """Test that the system is not well defined if energies are not defined."""
-    system = mm.System(name="test_invalid_magnetization")
+    system = mm.System(name="test_missing_energies")
     state = state_zero.copy()
     state.point_data["m"][:, 0] = 1
     system.m = state
     hd = ta.HysteresisDriver()
     with pytest.raises(RuntimeError, match="System's energy is not defined"):
         hd._check_system(system)
+
+
+def test_check_system_unsupported_energies(state_zero):
+    """Test that `HysteresisDriver` does not support Zeeman energy terms."""
+    system = mm.System(name="test_unsupported_energies")
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    system.m = state
+    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1))
+    hd = ta.HysteresisDriver()
+    with pytest.raises(ValueError, match=r"Energy term Zeeman\(H=\(0, 0, 1\)\) is not supported by this driver"):
+        hd._check_system(system)
+
+
+def test_check_system_missing_magnetization():
+    """A system without magnetization is invalid."""
+    system = mm.System(name="test_missing_magnetization")
+    system.energy = mm.Exchange(A=1e-12) + mm.Demag()
+
+    with pytest.raises(RuntimeError, match="Undefined magnetization state"):
+        ta.HysteresisDriver()._check_system(system)
+
+
+def test_check_system_requires_unstructured_grid():
+    """`HysteresisDriver` does not accept a discretisedfield magnetization."""
+    system = mm.System(name="test_discretisedfield")
+    system.energy = mm.Demag()
+    region = df.Region(p1=(0, 0, 0), p2=(1e-9, 1e-9, 1e-9))
+    mesh = df.Mesh(region=region, n=(1, 1, 1))
+    system.m = df.Field(mesh, nvdim=3, value=(0, 1, 1), norm=1e6)
+
+    with pytest.raises(TypeError, match="requires system.m to be a pyvista.UnstructuredGrid"):
+        ta.HysteresisDriver()._check_system(system)
 
 
 def test_check_system_energies_unsupported_parameters(state_zero):
@@ -296,23 +339,6 @@ def test_check_system_energies_unsupported_parameters(state_zero):
     hd = ta.HysteresisDriver()
     with pytest.raises(RuntimeError, match="Attribute `asymptotic_radius` is not supported."):
         hd._check_system(system)
-
-
-def test_check_system_missing_magnetization():
-    """A system without magnetization is invalid."""
-    system = mm.System(name="test_invalid_magnetization")
-    system.energy = mm.Exchange(A=1e-12)
-
-    with pytest.raises(RuntimeError, match="Undefined magnetization state"):
-        ta.HysteresisDriver()._check_system(system)
-
-
-def test_check_system_requires_unstructured_grid():
-    """TOMMOS does not accept a discretisedfield magnetization."""
-    system = mm.examples.macrospin()
-
-    with pytest.raises(TypeError, match=r"pyvista\.UnstructuredGrid"):
-        ta.HysteresisDriver()._check_system(system)
 
 
 @pytest.mark.parametrize(
@@ -381,5 +407,5 @@ def test_check_system_does_not_modify_valid_system(state_zero):
 
 
 def test_x():
-    hd = ta.HysteresisDriver()
-    assert hd._x == "B_hysteresis"
+    """Test `x` label."""
+    assert ta.HysteresisDriver()._x == "B_hysteresis"
