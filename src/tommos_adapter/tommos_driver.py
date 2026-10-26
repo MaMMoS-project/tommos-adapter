@@ -5,11 +5,13 @@ The only available driver is a `HysteresisDriver` as the only capability of `tom
 
 from __future__ import annotations
 
+import abc
 import re
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import discretisedfield as df
 import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
@@ -23,37 +25,11 @@ if TYPE_CHECKING:
     import tommos_adapter
 
 
-class HysteresisDriver(mm.adapter_base.ExternalDriver):
-    """Driver to run a hysteresis loop.
+class Driver(mm.adapter_base.ExternalDriver):
+    """Driver base class.
 
-    The field sweep is defined when calling :meth:`drive` or :meth:`schedule`
-    using ``Hmin``, ``Hmax``, and ``n``. Field vectors are specified in A/m and
-    must lie on a common axis through the origin.
-
-    Examples:
-        1. Defining a driver.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> hd = ta.HysteresisDriver()
-
-        2. Passing an argument which is not allowed.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> md = ta.HysteresisDriver(myarg=1)
-        Traceback (most recent call last):
-           ...
-        AttributeError: ...
-
-        3. Getting the list of allowed attributes.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> hd = ta.HysteresisDriver()
-        >>> hd._allowed_attributes
-        [...]
-
+    This class is not supposed to be instantiated directly.
+    Please use ``MinDriver`` or ``HysteresisDriver`` instead.
     """
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
@@ -72,59 +48,23 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
         return argstr
 
+    @property
+    @abc.abstractmethod
+    def _needed_energy_terms(self):
+        """Needed energy terms in the system."""
+
+    @property
+    @abc.abstractmethod
+    def _supported_energy_terms(self):
+        """Supported energy terms in the system."""
+
+    @abc.abstractmethod
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
-        """Validate and convert hysteresis arguments to TOMMOS parameters."""
-        required_arguments = {"Hmin", "Hmax", "n"}
-        if not required_arguments.issubset(kwargs):
-            raise ValueError("Hmin, Hmax, and n must all be provided.")
+        """Check driver arguments in-place."""
 
-        fields = {}
-        for name in ("Hmin", "Hmax"):
-            try:
-                field = np.asarray(kwargs[name], dtype=float)
-            except (TypeError, ValueError) as error:
-                raise ValueError(f"{name} must contain three numeric values.") from error
-            if field.shape != (3,):
-                raise ValueError(f"{name} must contain three numeric values.")
-            if not np.all(np.isfinite(field)):
-                raise ValueError(f"{name} must contain only finite values.")
-            fields[name] = field
-
-        n = kwargs["n"]
-        if isinstance(n, bool) or not isinstance(n, int):
-            raise ValueError(f"n must be an integer, not {type(n).__name__}.")
-        if n < 2:
-            raise ValueError(f"n must be at least 2, got {n}.")
-
-        Hmin = fields["Hmin"]
-        Hmax = fields["Hmax"]
-        field_difference = Hmax - Hmin
-        difference_norm = np.linalg.norm(field_difference)
-        if difference_norm == 0:
-            raise ValueError("Hmin and Hmax must differ.")
-
-        Hmin_norm = np.linalg.norm(Hmin)
-        Hmax_norm = np.linalg.norm(Hmax)
-        if Hmin_norm > 0 and Hmax_norm > 0:
-            relative_cross_product = np.linalg.norm(np.cross(Hmin, Hmax)) / (Hmin_norm * Hmax_norm)
-            if not np.isclose(relative_cross_product, 0, atol=1e-12):
-                raise ValueError("Hmin and Hmax must be collinear with the origin.")
-
-        h = field_difference / difference_norm
-        hstart = float(np.vdot(h, Hmin) * mm.consts.mu0)
-        hfinal = float(np.vdot(h, Hmax) * mm.consts.mu0)
-        kwargs.update(
-            hx=float(h[0]),
-            hy=float(h[1]),
-            hz=float(h[2]),
-            hstart=hstart,
-            hfinal=hfinal,
-            hstep=(hfinal - hstart) / (n - 1),
-        )
-
-        # TOMMOS uses the converted field parameters, but n is retained for progress reporting.
-        for key in ["Hmin", "Hmax"]:
-            kwargs.pop(key)
+    @abc.abstractmethod
+    def _get_required_p2_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file."""
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
@@ -132,7 +72,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         np.savez(f"{system.name}.npz", **mesh)
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
-        p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
+        p2_arguments = self._get_required_p2_arguments(system, kwargs)
         p2_arguments.update(dict(self))
         Path(f"{system.name}.p2").write_text(
             scripts.p2_script(
@@ -273,12 +213,22 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             RuntimeError: If energy, magnetization, or required grid data are
                 missing or invalid.
         """
+        # check energies
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
-        for energy in system.energy:
-            if isinstance(energy, mm.Demag) and hasattr(energy, "asymptotic_radius"):
+        # check needed energy
+        for needed_energy in self._needed_energy_terms:
+            if needed_energy not in (e.name for e in system.energy):
+                raise ValueError(
+                    f"Needed energy {needed_energy} not defined in system {system} with energies {system.energy=}"
+                )
+        # check supported energies and attributes
+        for term in system.energy:
+            if term.name not in self._supported_energy_terms:
+                raise ValueError(f"Energy term {term!r} is not supported by this driver.")
+            if isinstance(term, mm.Demag) and hasattr(term, "asymptotic_radius"):
                 raise RuntimeError(
-                    f"Attribute `asymptotic_radius` is not supported. Given value: {energy.asymptotic_radius}."
+                    f"Attribute `asymptotic_radius` is not supported. Given value: {term.asymptotic_radius}."
                 )
 
         if system.m is None:
@@ -319,3 +269,162 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     @property
     def _x(self) -> str:
         return "B_hysteresis"
+
+
+class MinDriver(Driver):
+    """Driver to relax a micromagnetic system."""
+
+    _needed_energy_terms = ("demag",)
+    _supported_energy_terms = ("exchange", "uniaxialanisotropy", "demag", "zeeman")
+
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Validate driver arguments."""
+        if {"Hmin", "Hmax", "n"}.intersection(kwargs):
+            raise RuntimeError(
+                f"Arguments `Hmin`, `Hmax`, `n` are not supported in `MinDriver`. Given arguments: {kwargs}"
+            )
+
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file.
+
+        If the system has a Zeeman energy, the ``MinDriver`` needs to convert the external field into a
+        field protocol understandable by ``tommos``.
+
+        - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
+        - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
+        - ``hstart``: Start field magnitude.
+        - ``hfinal``: Final field magnitude.
+
+        Args:
+            system: Micromagnetic system.
+            kwargs: Given keyword arguments.
+        """
+        if hasattr(system.energy, "zeeman"):
+            zeeman = system.energy.zeeman
+            if callable(zeeman.func) or isinstance(zeeman.func, str):
+                raise ValueError(f"Changing external field is not supported. Given {zeeman=}.")
+
+            H = zeeman.H
+            if isinstance(H, dict):
+                raise ValueError(f"Multi-domain external field is not supported. Given {H=}.")
+            elif isinstance(H, df.Field):
+                raise ValueError(f"External field given as a `discretisedfield.Field` is not supported. Given {H=}.`")
+            else:
+                H_norm = np.linalg.norm(H)
+                h = np.array(H) / H_norm
+                hx, hy, hz = h
+                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 0}
+        else:
+            return {}
+
+
+class HysteresisDriver(Driver):
+    """Driver to run a hysteresis loop.
+
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule`
+    using ``Hmin``, ``Hmax``, and ``n``. Field vectors are specified in A/m and
+    must lie on a common axis through the origin.
+
+    Examples:
+        1. Defining a driver.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> hd = ta.HysteresisDriver()
+
+        2. Passing an argument which is not allowed.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> md = ta.HysteresisDriver(myarg=1)
+        Traceback (most recent call last):
+           ...
+        AttributeError: ...
+
+        3. Getting the list of allowed attributes.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> hd = ta.HysteresisDriver()
+        >>> hd._allowed_attributes
+        [...]
+
+    """
+
+    _needed_energy_terms = ("demag",)
+    _supported_energy_terms = ("exchange", "uniaxialanisotropy", "demag")
+
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Validate and convert hysteresis arguments to TOMMOS parameters."""
+        required_arguments = {"Hmin", "Hmax", "n"}
+        if not required_arguments.issubset(kwargs):
+            raise ValueError("Hmin, Hmax, and n must all be provided.")
+
+        fields = {}
+        for name in ("Hmin", "Hmax"):
+            try:
+                field = np.asarray(kwargs[name], dtype=float)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"{name} must contain three numeric values.") from error
+            if field.shape != (3,):
+                raise ValueError(f"{name} must contain three numeric values.")
+            if not np.all(np.isfinite(field)):
+                raise ValueError(f"{name} must contain only finite values.")
+            fields[name] = field
+
+        n = kwargs["n"]
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise ValueError(f"n must be an integer, not {type(n).__name__}.")
+        if n < 2:
+            raise ValueError(f"n must be at least 2, got {n}.")
+
+        Hmin = fields["Hmin"]
+        Hmax = fields["Hmax"]
+        field_difference = Hmax - Hmin
+        difference_norm = np.linalg.norm(field_difference)
+        if difference_norm == 0:
+            raise ValueError("Hmin and Hmax must differ.")
+
+        Hmin_norm = np.linalg.norm(Hmin)
+        Hmax_norm = np.linalg.norm(Hmax)
+        if Hmin_norm > 0 and Hmax_norm > 0:
+            relative_cross_product = np.linalg.norm(np.cross(Hmin, Hmax)) / (Hmin_norm * Hmax_norm)
+            if not np.isclose(relative_cross_product, 0, atol=1e-12):
+                raise ValueError("Hmin and Hmax must be collinear with the origin.")
+
+        h = field_difference / difference_norm
+        hstart = float(np.vdot(h, Hmin) * mm.consts.mu0)
+        hfinal = float(np.vdot(h, Hmax) * mm.consts.mu0)
+        kwargs.update(
+            hx=float(h[0]),
+            hy=float(h[1]),
+            hz=float(h[2]),
+            hstart=hstart,
+            hfinal=hfinal,
+            hstep=(hfinal - hstart) / (n - 1),
+        )
+
+        # TOMMOS uses the converted field parameters, but n is retained for progress reporting.
+        for key in ["Hmin", "Hmax"]:
+            kwargs.pop(key)
+
+        # The adapter currently represents one collinear field sweep from Hmin to Hmax.
+
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file.
+
+        For a ``HysteresisDriver``, the necessary arguments are the one regarding the field protocol:
+
+        - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
+        - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
+        - ``hstart``: Start field magnitude.
+        - ``hfinal``: Final field magnitude.
+        - ``hstep``: Uniform field step in the field protocol.
+
+        Args:
+            system: Micromagnetic system.
+            kwargs: Given keyword arguments.
+        """
+        return {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
