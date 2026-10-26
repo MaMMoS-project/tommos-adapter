@@ -5,12 +5,14 @@ The only available driver is a `HysteresisDriver` as the only capability of `tom
 
 from __future__ import annotations
 
+import abc
 import numbers
 import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import discretisedfield as df
 import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
@@ -26,57 +28,11 @@ if TYPE_CHECKING:
     import tommos_adapter
 
 
-def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
-    """Return the output magnetization at the points of ``system.m``.
+class Driver(mm.adapter_base.ExternalDriver):
+    """Driver base class.
 
-    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
-    coordinates of the original ones. Delete this function once tommos writes its output
-    without the airbox.
-    """
-    knt = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
-    output_points = np.asarray(output_state.points)
-    # tommos writes float32 coordinates, so the input points are rounded the same way.
-    _, key = np.unique(np.vstack([knt.astype(output_points.dtype), output_points]), axis=0, return_inverse=True)
-    key = key.ravel()
-    output_index = np.full(key.max() + 1, -1)
-    output_index[key[len(knt) :]] = np.arange(len(output_points))
-    point_map = output_index[key[: len(knt)]]
-    if np.any(point_map < 0) or len(np.unique(point_map)) != len(knt):
-        raise RuntimeError("Mesh in tommos output does not match system.m.")
-    return np.asarray(output_state.point_data["m"])[point_map]
-
-
-class HysteresisDriver(mm.adapter_base.ExternalDriver):
-    """Driver to run a hysteresis loop.
-
-    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the arguments ``h_direction``,
-    an iterable representing the unit vector of the direction of the external field, ``h_start``, the initial magnitude,
-    ``h_final``, the final magnitude``, and ``n``, the number of field steps.
-
-    Examples:
-        1. Defining a driver.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> hd = ta.HysteresisDriver()
-
-        2. Passing an argument which is not allowed.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> md = ta.HysteresisDriver(myarg=1)
-        Traceback (most recent call last):
-           ...
-        AttributeError: ...
-
-        3. Getting the list of allowed attributes.
-
-        >>> import tommos_adapter as ta
-        ...
-        >>> hd = ta.HysteresisDriver()
-        >>> hd._allowed_attributes
-        [...]
-
+    This class is not supposed to be instantiated directly.
+    Please use ``MinDriver`` or ``HysteresisDriver`` instead.
     """
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
@@ -98,28 +54,23 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             argstr += f" --num-devices {nd}"
         return argstr
 
+    @property
+    @abc.abstractmethod
+    def _needed_energy_terms(self):
+        """Needed energy terms in the system."""
+
+    @property
+    @abc.abstractmethod
+    def _supported_energy_terms(self):
+        """Supported energy terms in the system."""
+
+    @abc.abstractmethod
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
-        """Validate and convert hysteresis arguments to TOMMOS parameters."""
-        required_arguments = {"h_direction", "h_start", "h_final", "n"}
-        if not required_arguments.issubset(kwargs):
-            raise ValueError("`h_direction`, `h_start`, `h_final`, and `n` must all be provided.")
+        """Check driver arguments in-place."""
 
-        h_direction = _check_direction(kwargs.pop("h_direction"))
-        h_start = _check_field_magnitude(kwargs.pop("h_start"), "h_start")
-        h_final = _check_field_magnitude(kwargs.pop("h_final"), "h_final")
-        n = _check_number_field_steps(kwargs.get("n"))
-        h_start_Tesla = h_start * mm.consts.mu0
-        h_final_Tesla = h_final * mm.consts.mu0
-        h_step_Tesla = (h_final_Tesla - h_start_Tesla) / (n - 1)
-
-        kwargs.update(
-            hx=h_direction[0],
-            hy=h_direction[1],
-            hz=h_direction[2],
-            hstart=h_start_Tesla,
-            hfinal=h_final_Tesla,
-            hstep=h_step_Tesla,
-        )
+    @abc.abstractmethod
+    def _get_required_p2_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file."""
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
@@ -127,7 +78,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         np.savez(f"{system.name}.npz", **mesh)
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
-        p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
+        p2_arguments = self._get_required_p2_arguments(system, kwargs)
         p2_arguments.update(dict(self))
         Path(f"{system.name}.p2").write_text(
             scripts.p2_script(
@@ -257,12 +208,22 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             RuntimeError: If energy, magnetization, or required grid data are
                 missing or invalid.
         """
+        # check energies
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
-        for energy in system.energy:
-            if isinstance(energy, mm.Demag) and hasattr(energy, "asymptotic_radius"):
+        # check needed energy
+        for needed_energy in self._needed_energy_terms:
+            if needed_energy not in (e.name for e in system.energy):
+                raise ValueError(
+                    f"Needed energy {needed_energy} not defined in system {system} with energies {system.energy=}"
+                )
+        # check supported energies and attributes
+        for term in system.energy:
+            if term.name not in self._supported_energy_terms:
+                raise ValueError(f"Energy term {term!r} is not supported by this driver.")
+            if isinstance(term, mm.Demag) and hasattr(term, "asymptotic_radius"):
                 raise RuntimeError(
-                    f"Attribute `asymptotic_radius` is not supported. Given value: {energy.asymptotic_radius}."
+                    f"Attribute `asymptotic_radius` is not supported. Given value: {term.asymptotic_radius}."
                 )
 
         if system.m is None:
@@ -303,6 +264,132 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     @property
     def _x(self) -> str:
         return "B_hysteresis"
+
+
+class MinDriver(Driver):
+    """Driver to relax a micromagnetic system."""
+
+    _needed_energy_terms = ("demag",)
+    _supported_energy_terms = ("exchange", "uniaxialanisotropy", "demag", "zeeman")
+
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Validate driver arguments."""
+        if {"Hmin", "Hmax", "n"}.intersection(kwargs):
+            raise RuntimeError(
+                f"Arguments `Hmin`, `Hmax`, `n` are not supported in `MinDriver`. Given arguments: {kwargs}"
+            )
+
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file.
+
+        If the system has a Zeeman energy, the ``MinDriver`` needs to convert the external field into a
+        field protocol understandable by ``tommos``.
+
+        - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
+        - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
+        - ``hstart``: Start field magnitude.
+        - ``hfinal``: Final field magnitude.
+
+        Args:
+            system: Micromagnetic system.
+            kwargs: Given keyword arguments.
+        """
+        if hasattr(system.energy, "zeeman"):
+            zeeman = system.energy.zeeman
+            if callable(zeeman.func) or isinstance(zeeman.func, str):
+                raise ValueError(f"Changing external field is not supported. Given {zeeman=}.")
+
+            H = zeeman.H
+            if isinstance(H, dict):
+                raise ValueError(f"Multi-domain external field is not supported. Given {H=}.")
+            elif isinstance(H, df.Field):
+                raise ValueError(f"External field given as a `discretisedfield.Field` is not supported. Given {H=}.`")
+            else:
+                H_norm = np.linalg.norm(H)
+                h = np.array(H) / H_norm
+                hx, hy, hz = h
+                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 0}
+        else:
+            return {}
+
+
+class HysteresisDriver(Driver):
+    """Driver to run a hysteresis loop.
+
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the arguments ``h_direction``,
+    an iterable representing the unit vector of the direction of the external field, ``h_start``, the initial magnitude,
+    ``h_final``, the final magnitude``, and ``n``, the number of field steps.
+
+    Examples:
+        1. Defining a driver.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> hd = ta.HysteresisDriver()
+
+        2. Passing an argument which is not allowed.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> md = ta.HysteresisDriver(myarg=1)
+        Traceback (most recent call last):
+           ...
+        AttributeError: ...
+
+        3. Getting the list of allowed attributes.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> hd = ta.HysteresisDriver()
+        >>> hd._allowed_attributes
+        [...]
+
+    """
+
+    _needed_energy_terms = ("demag",)
+    _supported_energy_terms = ("exchange", "uniaxialanisotropy", "demag")
+
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Validate and convert hysteresis arguments to TOMMOS parameters."""
+        required_arguments = {"h_direction", "h_start", "h_final", "n"}
+        if not required_arguments.issubset(kwargs):
+            raise ValueError("`h_direction`, `h_start`, `h_final`, and `n` must all be provided.")
+
+        h_direction = _check_direction(kwargs.pop("h_direction"))
+        h_start = _check_field_magnitude(kwargs.pop("h_start"), "h_start")
+        h_final = _check_field_magnitude(kwargs.pop("h_final"), "h_final")
+        n = _check_number_field_steps(kwargs.get("n"))
+        h_start_Tesla = h_start * mm.consts.mu0
+        h_final_Tesla = h_final * mm.consts.mu0
+        h_step_Tesla = (h_final_Tesla - h_start_Tesla) / (n - 1)
+
+        kwargs.update(
+            hx=h_direction[0],
+            hy=h_direction[1],
+            hz=h_direction[2],
+            hstart=h_start_Tesla,
+            hfinal=h_final_Tesla,
+            hstep=h_step_Tesla,
+        )
+
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file.
+
+        For a ``HysteresisDriver``, the necessary arguments are the one regarding the field protocol:
+
+        - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
+        - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
+        - ``hstart``: Start field magnitude in Tesla.
+        - ``hfinal``: Final field magnitude in Tesla.
+        - ``hstep``: Uniform field step in the field protocol.
+
+        Args:
+            system: Micromagnetic system.
+            kwargs: Given keyword arguments.
+        """
+        return {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
 
 
 def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
@@ -370,3 +457,23 @@ def _check_number_field_steps(n: numbers.Integral) -> int:
     if not isinstance(n, numbers.Integral) or n < 2 or not np.isfinite(n):
         raise ValueError(f"Parameter `n` (number of field steps) must be an integer bigger than 2. Got: {n}")
     return int(n)
+
+
+def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
+    """Return the output magnetization at the points of ``system.m``.
+
+    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
+    coordinates of the original ones. Delete this function once tommos writes its output
+    without the airbox.
+    """
+    knt = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+    output_points = np.asarray(output_state.points)
+    # tommos writes float32 coordinates, so the input points are rounded the same way.
+    _, key = np.unique(np.vstack([knt.astype(output_points.dtype), output_points]), axis=0, return_inverse=True)
+    key = key.ravel()
+    output_index = np.full(key.max() + 1, -1)
+    output_index[key[len(knt) :]] = np.arange(len(output_points))
+    point_map = output_index[key[: len(knt)]]
+    if np.any(point_map < 0) or len(np.unique(point_map)) != len(knt):
+        raise RuntimeError("Mesh in tommos output does not match system.m.")
+    return np.asarray(output_state.point_data["m"])[point_map]
