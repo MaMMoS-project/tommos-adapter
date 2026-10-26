@@ -116,6 +116,8 @@ def test_p2_script_translates_hysteresis_parameters(system):
             hstart=-1,
             hfinal=2,
             hstep=0.3,
+            mstep=1,
+            method="tr",
             max_iter=1000,
             tol_fun=1e-8,
             eps_a="auto",
@@ -130,6 +132,8 @@ def test_p2_script_translates_hysteresis_parameters(system):
     assert config.getfloat("field", "hfinal") == pytest.approx(2.0)
     assert config.getfloat("field", "hstep") == pytest.approx(0.3)
     assert config.getfloat("field", "hx") == pytest.approx(-1.0)
+    assert config.getfloat("field", "mstep") == pytest.approx(1)
+    assert config.get("minimizer", "method") == "tr"
     assert config.getint("minimizer", "max_iter") == 1000
     assert config.getfloat("minimizer", "tol_fun") == pytest.approx(1e-8)
     assert config.get("minimizer", "eps_a") == "auto"
