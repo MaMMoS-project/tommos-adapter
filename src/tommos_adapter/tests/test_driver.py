@@ -158,7 +158,7 @@ def test_schedule_command():
     assert hd._schedule_commands(system, None) == [schedule_command]
 
     tr = ta.TommosRunner(command=["pixi", "run", "-e", "cuda", "tommos"])
-    assert hd._schedule_commands(system, tr) == ["pixi run -e cuda tommos loop test_schedule_command"]
+    assert hd._schedule_commands(system, tr) == [f"pixi run -e cuda {schedule_command}"]
 
 
 def test_call_passes_progress_information():
