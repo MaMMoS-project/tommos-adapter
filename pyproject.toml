@@ -93,7 +93,7 @@ tommos-adapter = { path = ".", editable = true }
 build-dists = {cmd="rm -rf dist && hatch build -t sdist -t wheel && twine check dist/*", description="Build and check sdist and wheel."}
 coverage = {cmd="pytest -v --cov src/tommos_adapter --cov-report xml", description="Run unittests with coverage."}
 examples = "jupyter-lab examples"
-test-unittest = {cmd="python -c 'import tommos_adapter; tommos_adapter.test()'", description="Run unittests."}
+test-unittest = {cmd="python -c 'import tommos_adapter; raise SystemExit(tommos_adapter.test())'", description="Run unittests."}
 test-docstrings = {cmd="pytest -vv --doctest-modules src/tommos_adapter --ignore=src/tommos_adapter/tests", description="Run doctests."}
 test-notebooks = {cmd="pytest -vv --nbval-lax examples -k 'not hard-magnet-tutorial'", description="Test notebooks"}
 test-all = {depends-on=["test-unittest", "test-docstrings", "test-notebooks"], description="Run all tests."}
