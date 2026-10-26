@@ -71,9 +71,13 @@ def test_allowed_attributes():
 def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
     """Test that field arguments are processed correctly."""
     kwargs = {
-        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
-        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
-        "n": n,
+        "Hsteps": [
+            [
+                (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
+                (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
+                n,
+            ]
+        ]
     }
     hd = ta.HysteresisDriver()
     getattr(hd, processor)(kwargs)
@@ -89,24 +93,55 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
 
 
 @pytest.mark.parametrize(
-    "kwargs, error_message",
+    "kwargs, expected_error, error_message",
     [
-        ({}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0)}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin must contain three numeric values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, np.nan, 0), "n": 3}, "Hmax must contain only finite values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 3.0}, "n must be an integer"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 1}, "n must be at least 2"),
-        ({"Hmin": (1, 0, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin and Hmax must differ"),
+        ({}, ValueError, "`Hsteps` must be provided"),
         (
-            {"Hmin": (1, 0, 0), "Hmax": (0, 1, 0), "n": 3},
-            "Hmin and Hmax must be collinear with the origin",
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "Hmin": (-1, 0, 0)},
+            RuntimeError,
+            "Argument 'Hmin' should not be provided",
         ),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "Hmax": (1, 0, 0)},
+            RuntimeError,
+            "Argument 'Hmax' should not be provided",
+        ),
+        ({"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "n": 5}, RuntimeError, "Argument 'n' should not be provided"),
+        ({"Hsteps": 3}, ValueError, "Argument `Hsteps` must be a sequence"),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5], [(1, 0, 0), (-1, 0, 0), 7]]},
+            NotImplementedError,
+            "Multi sweep is currently not implemented.",
+        ),
+        (
+            {"Hsteps": [[(-1, 0), (1, 0, 0), 3]]},
+            ValueError,
+            "Hstart must be a one-dimensional array containing three numerical values.",
+        ),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0), 3]]},
+            ValueError,
+            "Hend must be a one-dimensional array containing three numerical values.",
+        ),
+        ({"Hsteps": [[(-np.nan, 0, 0), (1, 0, 0), 3]]}, ValueError, "Hstart must contain only finite values."),
+        ({"Hsteps": [[(-1, 0, 0), (np.nan, 0, 0), 3]]}, ValueError, "Hend must contain only finite values."),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 3.0]]},
+            ValueError,
+            "n \(number of field step\) must be an integer bigger than 2.",
+        ),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 1]]},
+            ValueError,
+            "n \(number of field step\) must be an integer bigger than 2.",
+        ),
+        ({"Hsteps": [[(1, 0, 0), (1, 0, 0), 3]]}, ValueError, "Hstart and Hend must differ."),
+        ({"Hsteps": [[(1, 0, 0), (0, 1, 0), 3]]}, ValueError, "Hstart and Hend must be collinear with the origin"),
     ],
 )
-def test_invalid_hysteresis_arguments(kwargs, error_message):
+def test_invalid_hysteresis_arguments(kwargs, expected_error, error_message):
     """Invalid hysteresis arguments must produce helpful errors."""
-    with pytest.raises(ValueError, match=error_message):
+    with pytest.raises(expected_error, match=error_message):
         ta.HysteresisDriver()._checkargs(kwargs)
 
 
@@ -131,11 +166,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     system.m = state
     system.energy = mm.Demag()
     hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    kwargs = {
-        "Hmin": (1 / mm.consts.mu0, 0, 0),
-        "Hmax": (-2 / mm.consts.mu0, 0, 0),
-        "n": 11,
-    }
+    kwargs = {"Hsteps": [[(1 / mm.consts.mu0, 0, 0), (-2 / mm.consts.mu0, 0, 0), 11]]}
     monkeypatch.chdir(tmp_path)
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)

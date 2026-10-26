@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -26,9 +27,9 @@ if TYPE_CHECKING:
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
-    The field sweep is defined when calling :meth:`drive` or :meth:`schedule`
-    using ``Hmin``, ``Hmax``, and ``n``. Field vectors are specified in A/m and
-    must lie on a common axis through the origin.
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the argument ``Hsteps``,
+    specifying a curve in the form ``(Hstart, Hend, n)``. Objects ``Hstart`` and ``Hend`` are one-dimensional
+    arrays of length 3, specified in A/m and must lie on a common axis through the origin.
 
     Examples:
         1. Defining a driver.
@@ -74,57 +75,57 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
-        required_arguments = {"Hmin", "Hmax", "n"}
-        if not required_arguments.issubset(kwargs):
-            raise ValueError("Hmin, Hmax, and n must all be provided.")
+        if "Hsteps" not in kwargs:
+            raise ValueError("`Hsteps` must be provided.")
+        Hsteps = kwargs.pop("Hsteps")
+        for field_argument in ("Hmin", "Hmax", "n"):
+            if field_argument in kwargs:
+                raise RuntimeError(f"Argument '{field_argument}' should not be provided.")
 
-        fields = {}
-        for name in ("Hmin", "Hmax"):
-            try:
-                field = np.asarray(kwargs[name], dtype=float)
-            except (TypeError, ValueError) as error:
-                raise ValueError(f"{name} must contain three numeric values.") from error
+        if not isinstance(Hsteps, Sequence):
+            raise ValueError("Argument `Hsteps` must be a sequence of `(Hstart, Hend, n)`.")
+        if len(Hsteps) > 1:
+            raise NotImplementedError("Multi sweep is currently not implemented.")
+        Hstep = Hsteps[0]
+
+        Hstart = np.asarray(Hstep[0], dtype=float)
+        Hend = np.asarray(Hstep[1], dtype=float)
+        Hn = Hstep[2]
+        for name, field in {"Hstart": Hstart, "Hend": Hend}.items():
             if field.shape != (3,):
-                raise ValueError(f"{name} must contain three numeric values.")
+                raise ValueError(
+                    f"{name} must be a one-dimensional array containing three numerical values. Got {field}."
+                )
             if not np.all(np.isfinite(field)):
-                raise ValueError(f"{name} must contain only finite values.")
-            fields[name] = field
+                raise ValueError(f"{name} must contain only finite values. Got {field}")
 
-        n = kwargs["n"]
-        if isinstance(n, bool) or not isinstance(n, int):
-            raise ValueError(f"n must be an integer, not {type(n).__name__}.")
-        if n < 2:
-            raise ValueError(f"n must be at least 2, got {n}.")
+        if not isinstance(Hn, int) or Hn < 2:
+            raise ValueError(f"n (number of field step) must be an integer bigger than 2. Got: {Hn}")
 
-        Hmin = fields["Hmin"]
-        Hmax = fields["Hmax"]
-        field_difference = Hmax - Hmin
+        field_difference = Hend - Hstart
         difference_norm = np.linalg.norm(field_difference)
         if difference_norm == 0:
-            raise ValueError("Hmin and Hmax must differ.")
+            raise ValueError("Hstart and Hend must differ.")
 
-        Hmin_norm = np.linalg.norm(Hmin)
-        Hmax_norm = np.linalg.norm(Hmax)
-        if Hmin_norm > 0 and Hmax_norm > 0:
-            relative_cross_product = np.linalg.norm(np.cross(Hmin, Hmax)) / (Hmin_norm * Hmax_norm)
+        Hstart_norm = np.linalg.norm(Hstart)
+        Hend_norm = np.linalg.norm(Hend)
+        if Hstart_norm > 0 and Hend_norm > 0:
+            relative_cross_product = np.linalg.norm(np.cross(Hstart, Hend)) / (Hstart_norm * Hend_norm)
             if not np.isclose(relative_cross_product, 0, atol=1e-12):
-                raise ValueError("Hmin and Hmax must be collinear with the origin.")
+                raise ValueError("Hstart and Hend must be collinear with the origin.")
 
         h = field_difference / difference_norm
-        hstart = float(np.vdot(h, Hmin) * mm.consts.mu0)
-        hfinal = float(np.vdot(h, Hmax) * mm.consts.mu0)
+        hstart = float(np.vdot(h, Hstart) * mm.consts.mu0)
+        hfinal = float(np.vdot(h, Hend) * mm.consts.mu0)
         kwargs.update(
             hx=float(h[0]),
             hy=float(h[1]),
             hz=float(h[2]),
             hstart=hstart,
             hfinal=hfinal,
-            hstep=(hfinal - hstart) / (n - 1),
+            hstep=(hfinal - hstart) / (Hn - 1),
+            n=Hn,
         )
-
-        # TOMMOS uses the converted field parameters, but n is retained for progress reporting.
-        for key in ["Hmin", "Hmax"]:
-            kwargs.pop(key)
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
@@ -238,9 +239,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Validate and convert hysteresis arguments for a scheduled run.
 
         Args:
-            schedule_kwargs: Arguments containing the starting field ``Hmin``
-                in A/m, final field ``Hmax`` in A/m, and number of field
-                points ``n``.
+            schedule_kwargs: Arguments containing the starting field protocols ``Hsteps`` as a list of sweeps,
+                each in the form of ``(Hstart, Hend, n)``, where the initial and final fields are one-dimensional
+                arrays of 3 numbers (expressed in A/m) and the number of field steps ``n`` is an integer.
 
         Raises:
             ValueError: If arguments are missing or do not define a valid
@@ -252,9 +253,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Validate and convert hysteresis arguments for a direct run.
 
         Args:
-            drive_kwargs: Arguments containing the starting field ``Hmin`` in
-                A/m, final field ``Hmax`` in A/m, and number of field points
-                ``n``.
+            drive_kwargs: Arguments containing the starting field protocols ``Hsteps`` as a list of sweeps,
+                each in the form of ``(Hstart, Hend, n)``, where the initial and final fields are one-dimensional
+                arrays of 3 numbers (expressed in A/m) and the number of field steps ``n`` is an integer.
 
         Raises:
             ValueError: If arguments are missing or do not define a valid
