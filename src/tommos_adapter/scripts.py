@@ -21,7 +21,7 @@ from __future__ import annotations
 import io
 from collections.abc import Mapping
 from dataclasses import dataclass
-from numbers import Real
+from numbers import Integral, Real
 
 import micromagneticmodel as mm
 import numpy as np
@@ -242,7 +242,7 @@ def p2_script(
     hfinal: Real,
     hstep: Real,
     mesh_unit: float = DEFAULT_MESH_UNIT,
-    max_iter: int | None = None,
+    max_iter: Integral | None = None,
     mstep: float | None = None,
     method: str = "",
     tol_fun: float | None = None,
@@ -275,7 +275,7 @@ def p2_script(
     """
     if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
         raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
-    if max_iter is not None and (not isinstance(max_iter, int) or isinstance(max_iter, bool) or max_iter <= 0):
+    if max_iter is not None and (isinstance(max_iter, bool) or not isinstance(max_iter, Integral) or max_iter <= 0):
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
         raise ValueError(f"tol_fun must be a positive finite number, got {tol_fun!r}.")

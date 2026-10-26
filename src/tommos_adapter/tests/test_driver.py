@@ -24,7 +24,7 @@ def test_allowed_attributes():
         (
             (-1, 0, 0),
             (2, 0, 0),
-            6,
+            np.int64(6),
             np.float64(1),
             np.float64(0),
             np.float64(0),
@@ -96,6 +96,7 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         ({"Hmin": (-1, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin must contain three numeric values"),
         ({"Hmin": (-1, 0, 0), "Hmax": (1, np.nan, 0), "n": 3}, "Hmax must contain only finite values"),
         ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 3.0}, "n must be an integer"),
+        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": True}, "n must be an integer"),
         ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 1}, "n must be at least 2"),
         ({"Hmin": (1, 0, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin and Hmax must differ"),
         (

@@ -118,7 +118,7 @@ def test_p2_script_translates_hysteresis_parameters(system):
             hstep=0.3,
             mstep=1,
             method="tr",
-            max_iter=1000,
+            max_iter=np.int64(1000),
             tol_fun=1e-8,
             eps_a="auto",
         )
@@ -137,6 +137,21 @@ def test_p2_script_translates_hysteresis_parameters(system):
     assert config.getint("minimizer", "max_iter") == 1000
     assert config.getfloat("minimizer", "tol_fun") == pytest.approx(1e-8)
     assert config.get("minimizer", "eps_a") == "auto"
+
+
+def test_p2_script_rejects_boolean_max_iter(system):
+    """A boolean is not a valid number of minimiser iterations."""
+    with pytest.raises(ValueError, match="max_iter must be a positive integer"):
+        scripts.p2_script(
+            system,
+            hx=0,
+            hy=0,
+            hz=1,
+            hstart=-1,
+            hfinal=1,
+            hstep=0.5,
+            max_iter=True,
+        )
 
 
 def test_p2_script_rejects_nonuniform_m(system):

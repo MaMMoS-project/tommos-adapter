@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 import sys
+from numbers import Integral
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -91,7 +92,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             fields[name] = field
 
         n = kwargs["n"]
-        if isinstance(n, bool) or not isinstance(n, int):
+        if isinstance(n, bool) or not isinstance(n, Integral):
             raise ValueError(f"n must be an integer, not {type(n).__name__}.")
         if n < 2:
             raise ValueError(f"n must be at least 2, got {n}.")
