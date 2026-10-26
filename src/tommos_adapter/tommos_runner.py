@@ -18,11 +18,19 @@ class TommosRunner(adapter_base.ExternalRunner):
     """
 
     def __init__(self, command: str | Sequence[str] = "tommos") -> None:
-        """Initialise the runner."""
+        """Initialise the runner.
+
+        Args:
+            command: Executable or command prefix used to invoke TOMMOS.
+
+        Raises:
+            ValueError: If the command is empty or contains a part that is not
+                a non-empty string.
+        """
         command_parts = shlex.split(command) if isinstance(command, str) else list(command)
 
         if not command_parts or any(not isinstance(part, str) or not part for part in command_parts):
-            msg = "command must contain at least one non-empty string."
+            msg = "command must be a non-empty string or a sequence containing only non-empty strings."
             raise ValueError(msg)
 
         self.command = tuple(command_parts)

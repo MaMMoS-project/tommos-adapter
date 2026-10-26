@@ -1,3 +1,5 @@
+"""Test configurable TOMMOS command construction and executable lookup."""
+
 import re
 import subprocess
 from unittest.mock import Mock
@@ -59,9 +61,9 @@ def test_call_resolves_executable(monkeypatch):
     )
 
 
-@pytest.mark.parametrize("command", ["", [], ["tommos", ""]])
+@pytest.mark.parametrize("command", ["", [], ["tommos", ""], ["tommos", 1]])
 def test_invalid_command(command):
-    with pytest.raises(ValueError, match="at least one non-empty string"):
+    with pytest.raises(ValueError, match="sequence containing only non-empty strings"):
         TommosRunner(command=command)
 
 
