@@ -10,9 +10,9 @@ import tommos_adapter as ta
 
 
 def test_allowed_attributes():
-    assert ta.HysteresisDriver()._allowed_attributes == ["max_iter", "tol_fun", "eps_a"]
-    driver = ta.HysteresisDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    assert dict(driver) == {"max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
+    assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    assert dict(driver) == {"mstep": 1, "method": "tr", "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
     with pytest.raises(AttributeError, match="Invalid attribute key"):
         ta.HysteresisDriver(unexpected_argument=1)
 
@@ -116,7 +116,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     state.point_data["m"][:, 2] = 1
     system.m = state
     system.energy = mm.Demag()
-    hd = ta.HysteresisDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
     kwargs = {
         "Hmin": (1 / mm.consts.mu0, 0, 0),
         "Hmax": (-2 / mm.consts.mu0, 0, 0),
@@ -138,6 +138,8 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert "hstart = -1" in p2_text
     assert "hfinal = 2" in p2_text
     assert "hstep = 0.29999999999999999" in p2_text
+    assert "mstep = 1" in p2_text
+    assert "method = tr" in p2_text
     assert "max_iter = 1000" in p2_text
     assert "tol_fun = 1e-08" in p2_text
     assert "eps_a = auto" in p2_text
@@ -147,6 +149,10 @@ def test_schedule_command():
     """Test driver schedule command."""
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
+    tr = ta.TommosRunner()
+    assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
+    assert hd._schedule_commands(system, None) == ["tommos loop test_schedule_command"]
+
     tr = ta.TommosRunner(command=["pixi", "run", "-e", "cuda", "tommos"])
     assert hd._schedule_commands(system, tr) == ["pixi run -e cuda tommos loop test_schedule_command"]
 
@@ -259,6 +265,18 @@ def test_check_system_missing_energies(state_zero):
     system.m = state
     hd = ta.HysteresisDriver()
     with pytest.raises(RuntimeError, match="System's energy is not defined"):
+        hd._check_system(system)
+
+
+def test_check_system_energies_unsupported_parameters(state_zero):
+    """Test that the system energies raise errors on unsupported parameters."""
+    system = mm.System(name="test_unsupported_parameters")
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    system.m = state
+    system.energy = mm.Demag(asymptotic_radius=3)
+    hd = ta.HysteresisDriver()
+    with pytest.raises(RuntimeError, match="Attribute `asymptotic_radius` is not supported."):
         hd._check_system(system)
 
 

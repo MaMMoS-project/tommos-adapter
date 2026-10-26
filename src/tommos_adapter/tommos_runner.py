@@ -32,7 +32,7 @@ class TommosRunner(adapter_base.ExternalRunner):
         """Name of the calculator."""
         return "Tommos"
 
-    def _call(self, argstr: str, need_stderr: bool = False, dry_run: bool = False) -> subprocess.CompletedProcess | str:
+    def _call(self, argstr: str, need_stderr: bool = False, dry_run: bool = False) -> str | subprocess.CompletedProcess:
         """Call the external calculator in a subprocess.
 
         Args:
@@ -41,7 +41,8 @@ class TommosRunner(adapter_base.ExternalRunner):
             dry_run: Whether to only return the command to be executed.
 
         Returns:
-            Result of the subprocess call.
+            Command string if run with `dry_run=True` without executing it, otherwise the command is executed and the
+            result of the subprocess call is returned.
         """
         command = [*self.command, "loop", *shlex.split(argstr)]
 
