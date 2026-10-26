@@ -55,7 +55,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = ["max_iter", "tol_fun", "eps_a"]
+    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
@@ -111,8 +111,6 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         for key in ["Hmin", "Hmax"]:
             kwargs.pop(key)
 
-        # The adapter currently represents one collinear field sweep from Hmin to Hmax.
-
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
@@ -160,7 +158,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
-            runner = tommos_adapter.TommosRunner()
+            runner = TommosRunner()
         return [runner._call(argstr=system.name, dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
@@ -262,6 +260,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """
         if len(system.energy) == 0:
             raise RuntimeError("System's energy is not defined")
+        for energy in system.energy:
+            if isinstance(energy, mm.Demag) and hasattr(energy, "asymptotic_radius"):
+                raise RuntimeError(
+                    f"Attribute `asymptotic_radius` is not supported. Given value: {energy.asymptotic_radius}."
+                )
+
         if system.m is None:
             raise RuntimeError(f"Undefined magnetization state in given system {system}.")
         if not isinstance(system.m, pv.UnstructuredGrid):
