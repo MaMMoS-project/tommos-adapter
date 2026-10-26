@@ -1,5 +1,6 @@
 """Test hysteresis driver."""
 
+import sys
 from unittest.mock import Mock
 
 import micromagneticmodel as mm
@@ -150,8 +151,11 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
-    assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
-    assert hd._schedule_commands(system, None) == ["tommos loop test_schedule_command"]
+    schedule_command = "tommos loop test_schedule_command"
+    if sys.platform == "darwin":
+        schedule_command += " --cpu-spmv-backend scipy --no-cpp-mkl"
+    assert hd._schedule_commands(system, tr) == [schedule_command]
+    assert hd._schedule_commands(system, None) == [schedule_command]
 
 
 def test_call_passes_progress_information():
@@ -161,8 +165,12 @@ def test_call_passes_progress_information():
 
     ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
 
+    argstr = "test_progress"
+    if sys.platform == "darwin":
+        argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+
     runner.call.assert_called_once_with(
-        argstr="test_progress",
+        argstr=argstr,
         verbose=2,
         total=7,
         glob_name="hyst_test_progress/*.vtu",
