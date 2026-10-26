@@ -4,13 +4,11 @@ import subprocess
 
 import micromagneticmodel as mm
 import numpy as np
-import pytest
 import pyvista as pv
 
 import tommos_adapter as ta
 
 
-@pytest.mark.regression
 def test_uniform_sphere_instability_field(tmp_path, monkeypatch):
     """A uniformly magnetised soft sphere becomes unstable near Js/3."""
     name = "uniform_sphere"
@@ -51,7 +49,7 @@ def test_uniform_sphere_instability_field(tmp_path, monkeypatch):
         energy=mm.Exchange(A=0) + mm.UniaxialAnisotropy(K=0, u=(0, 0, 1)) + mm.Demag(),
         m=state,
     )
-    driver = ta.HysteresisDriver(max_iter=1000, tol_fun=1e-8)
+    driver = ta.HysteresisDriver(max_iter=1000)
     monkeypatch.chdir(tmp_path)
     driver._write_input_files(
         system,
@@ -64,10 +62,8 @@ def test_uniform_sphere_instability_field(tmp_path, monkeypatch):
     )
 
     result = ta.TommosRunner()._call(
-        # For this 20 nm sphere and h=3 nm, KL=10 gives a 227.8 nm air box.
-        f"{name} --add-shell --KL 10 --K 1.5 --hmax 20 --no-loop "
-        "--no-cpp-mkl --cpu-spmv-backend scipy --poisson-solver jax "
-        "--snapshot-every 0 --num-devices 1"
+        # For this 20 nm sphere and h=3 nm, TOMMOS's default KL=10 gives a 227.8 nm air box.
+        f"{name} --add-shell --hmax 20 --snapshot-every 0"
     )
     assert result.returncode == 0, result.stdout.decode() + result.stderr.decode()
 
