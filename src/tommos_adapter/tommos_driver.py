@@ -307,6 +307,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 "writing a restart VTU file is not implemented yet."
             )
 
+        if system.T != 0:
+            raise RuntimeError(f"`tommos` supports only T=0 K. Given temperature: {system.T} K.")
+
         try:
             scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
             scripts.krn_data(system)
