@@ -201,24 +201,7 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-def _write_tommos_table(output_directory):
-    """Write controlled tabular TOMMOS output for isolated driver tests."""
-    (output_directory / "mammos_hysteresis.csv").write_text(
-        """# mammos csv v3
-Index,MagneticFluxDensity,MagneticPolarisation,EnergyDensity,EnergyDensity,
-,,,,,
-,,,,,
-,T,T,J / m3,J / m3,
-config,B_ext_T,J_par_T,E,gnorm,future_column
-0,-1,-0.9,120000,400,7
-1,0,0.1,100000,40,8
-2,1,0.95,90000,4,9
-""",
-        encoding="utf-8",
-    )
-
-
-def test_read_data_updates_system(state_zero, tmp_path, monkeypatch):
+def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table):
     """Read the last TOMMOS state and table while retaining grid metadata."""
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
@@ -235,7 +218,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch):
     output_directory.mkdir()
     _write_tommos_output(state, output_directory / "state_cfg00010_B+1.0000e+00T.vtu", (0, 1, 0))
     _write_tommos_output(state, output_directory / "state_cfg00002_B-1.0000e+00T.vtu", (1, 0, 0))
-    _write_tommos_table(output_directory)
+    write_mammos_table(output_directory / "mammos_hysteresis.csv")
     monkeypatch.chdir(tmp_path)
 
     ta.HysteresisDriver()._read_data(system)
