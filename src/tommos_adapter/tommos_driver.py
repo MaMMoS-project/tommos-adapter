@@ -5,6 +5,7 @@ The only available driver is a `HysteresisDriver` as the only capability of `tom
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -59,16 +60,17 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, index: int) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            index: Index of sweep. Relevant for multi-sweep runs.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
-        argstr = f"{system.name}"
+        argstr = f"{system.name}-{index} --mesh {system.name}.npz"
         if sys.platform == "darwin":
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
         return argstr
@@ -84,47 +86,69 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
         if not isinstance(Hsteps, Sequence):
             raise ValueError("Argument `Hsteps` must be a sequence of `(Hstart, Hend, n)`.")
-        if len(Hsteps) > 1:
-            raise NotImplementedError("Multi sweep is currently not implemented.")
-        Hstep = Hsteps[0]
 
-        Hstart = np.asarray(Hstep[0], dtype=float)
-        Hend = np.asarray(Hstep[1], dtype=float)
-        Hn = Hstep[2]
-        for name, field in {"Hstart": Hstart, "Hend": Hend}.items():
-            if field.shape != (3,):
-                raise ValueError(
-                    f"{name} must be a one-dimensional array containing three numerical values. Got {field}."
-                )
-            if not np.all(np.isfinite(field)):
-                raise ValueError(f"{name} must contain only finite values. Got {field}")
+        hx_list = []
+        hy_list = []
+        hz_list = []
+        hstart_list = []
+        hfinal_list = []
+        hstep_list = []
+        n_list = []
+        for Hstep in Hsteps:
+            Hstart = np.asarray(Hstep[0], dtype=float)
+            Hend = np.asarray(Hstep[1], dtype=float)
+            Hn = Hstep[2]
+            for name, field in {"Hstart": Hstart, "Hend": Hend}.items():
+                if field.shape != (3,):
+                    raise ValueError(
+                        f"{name} must be a one-dimensional array containing three numerical values. Got {field}."
+                    )
+                if not np.all(np.isfinite(field)):
+                    raise ValueError(f"{name} must contain only finite values. Got {field}")
 
-        if not isinstance(Hn, int) or Hn < 2:
-            raise ValueError(f"n (number of field step) must be an integer bigger than 2. Got: {Hn}")
+            if not isinstance(Hn, int) or Hn < 2:
+                raise ValueError(f"n (number of field step) must be an integer bigger than 2. Got: {Hn}")
 
-        field_difference = Hend - Hstart
-        difference_norm = np.linalg.norm(field_difference)
-        if difference_norm == 0:
-            raise ValueError("Hstart and Hend must differ.")
+            field_difference = Hend - Hstart
+            difference_norm = np.linalg.norm(field_difference)
+            if difference_norm == 0:
+                raise ValueError("Hstart and Hend must differ.")
 
-        Hstart_norm = np.linalg.norm(Hstart)
-        Hend_norm = np.linalg.norm(Hend)
-        if Hstart_norm > 0 and Hend_norm > 0:
-            relative_cross_product = np.linalg.norm(np.cross(Hstart, Hend)) / (Hstart_norm * Hend_norm)
-            if not np.isclose(relative_cross_product, 0, atol=1e-12):
-                raise ValueError("Hstart and Hend must be collinear with the origin.")
+            Hstart_norm = np.linalg.norm(Hstart)
+            Hend_norm = np.linalg.norm(Hend)
+            if Hstart_norm > 0 and Hend_norm > 0:
+                relative_cross_product = np.linalg.norm(np.cross(Hstart, Hend)) / (Hstart_norm * Hend_norm)
+                if not np.isclose(relative_cross_product, 0, atol=1e-12):
+                    raise ValueError("Hstart and Hend must be collinear with the origin.")
 
-        h = field_difference / difference_norm
-        hstart = float(np.vdot(h, Hstart) * mm.consts.mu0)
-        hfinal = float(np.vdot(h, Hend) * mm.consts.mu0)
+            if not hx_list:
+                # direction `h` is not defined: we evaluate it by normalizing the field difference
+                h = field_difference / difference_norm
+            else:
+                # direction `h` is already defined: we check that it is parallel
+                if np.linalg.norm(np.cross(field_difference, h)) > 1e-12:
+                    raise ValueError("Sections in the hysteresis multi-sweep are not parallel.")
+
+            hstart = float(np.vdot(h, Hstart) * mm.consts.mu0)
+            hfinal = float(np.vdot(h, Hend) * mm.consts.mu0)
+            hstep = (hfinal - hstart) / (Hn - 1)
+            hx_list.append(float(h[0]))
+            hy_list.append(float(h[1]))
+            hz_list.append(float(h[2]))
+            hstart_list.append(hstart)
+            hfinal_list.append(hfinal)
+            hstep_list.append(hstep)
+            n_list.append(Hn)
+
         kwargs.update(
-            hx=float(h[0]),
-            hy=float(h[1]),
-            hz=float(h[2]),
-            hstart=hstart,
-            hfinal=hfinal,
-            hstep=(hfinal - hstart) / (Hn - 1),
-            n=Hn,
+            hx=hx_list,
+            hy=hy_list,
+            hz=hz_list,
+            hstart=hstart_list,
+            hfinal=hfinal_list,
+            hstep=hstep_list,
+            n=n_list,
+            n_sweep=len(Hsteps),
         )
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
@@ -133,16 +157,35 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         np.savez(f"{system.name}.npz", **mesh)
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
-        p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
-        p2_arguments.update(dict(self))
-        Path(f"{system.name}.p2").write_text(
-            scripts.p2_script(
-                system,
-                mesh_unit=scripts.DEFAULT_MESH_UNIT,
-                **p2_arguments,
-            ),
-            encoding="utf-8",
-        )
+        for index in range(kwargs["n_sweep"]):
+            p2_arguments = {name: kwargs[name][index] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
+            p2_arguments.update(dict(self))
+            Path(f"{system.name}-{index}.p2").write_text(
+                scripts.p2_script(
+                    system,
+                    mesh_unit=scripts.DEFAULT_MESH_UNIT,
+                    **p2_arguments,
+                ),
+                encoding="utf-8",
+            )
+
+    def _get_output_directory(self, system: micromagneticmodel.System, index: int) -> os.PathLike:
+        """Get output directory.
+
+        TODO: dosctring.
+        """
+        return Path(f"hyst_{system.name}-{index}")
+
+    def _get_latest_output_directory(self, system: micromagneticmodel.System) -> os.PathLike:
+        """Get latest output directory.
+
+        After running a list of sweeps, we return the path of the latest sweep.
+
+        TODO: docstring.
+        """
+        prefix = f"hyst_{system.name}-"
+        max_index = max([int(p.name.lstrip(prefix)) for p in Path(".").glob(f"{prefix}*")])
+        return self._get_output_directory(system, max_index)
 
     def _call(
         self,
@@ -154,12 +197,13 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Call runner to launch the simulation."""
         if runner is None:
             runner = TommosRunner()
-        runner.call(
-            argstr=self.get_argstr(system),
-            verbose=verbose,
-            total=kwargs.get("n"),
-            glob_name=f"hyst_{system.name}/*.vtu",
-        )
+        for index in range(kwargs["n_sweep"]):
+            runner.call(
+                argstr=self.get_argstr(system, index),
+                verbose=verbose,
+                total=kwargs.get("n"),
+                glob_name=f"{self._get_output_directory(system, index).name}/*.vtu",
+            )
 
     def _schedule_commands(
         self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
@@ -185,15 +229,15 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Args:
             system: Micromagnetic system.
         """
-        output_directory = Path(f"hyst_{system.name}")
+        latest_output_directory = self._get_latest_output_directory(system)
         indexed_output_files = []
-        for output_file in output_directory.glob("state_cfg*.vtu"):
+        for output_file in latest_output_directory.glob("state_cfg*.vtu"):
             match = re.fullmatch(r"state_cfg(\d+)_.*\.vtu", output_file.name)
             if match is not None:
                 indexed_output_files.append((int(match.group(1)), output_file))
 
         if not indexed_output_files:
-            raise RuntimeError(f"No TOMMOS VTU output found in '{output_directory}'.")
+            raise RuntimeError(f"No TOMMOS VTU output found in '{latest_output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
         try:
