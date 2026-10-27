@@ -1,6 +1,6 @@
 """Test hysteresis driver."""
 
-from pathlib import Path
+import sys
 from unittest.mock import Mock
 
 import micromagneticmodel as mm
@@ -8,8 +8,6 @@ import numpy as np
 import pytest
 
 import tommos_adapter as ta
-
-SAMPLE_TABLE = Path(__file__).parent / "test_sample" / "mammos_hysteresis.csv"
 
 
 def test_allowed_attributes():
@@ -112,6 +110,19 @@ def test_invalid_hysteresis_arguments(kwargs, error_message):
         ta.HysteresisDriver()._checkargs(kwargs)
 
 
+def test_invalid_temperature(state_zero):
+    """Raise error on temperature different than zero."""
+    system = mm.System(name="wrong_temperature")
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system.m = state
+    system.energy = mm.Demag()
+    system.T = 300.0
+    hd = ta.HysteresisDriver()
+    with pytest.raises(RuntimeError, match="`tommos` supports only T=0 K. Given temperature: 300.0 K"):
+        hd._check_system(system)
+
+
 def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")
@@ -153,8 +164,11 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
-    assert hd._schedule_commands(system, tr) == ["tommos loop test_schedule_command"]
-    assert hd._schedule_commands(system, None) == ["tommos loop test_schedule_command"]
+    schedule_command = "tommos loop test_schedule_command"
+    if sys.platform == "darwin":
+        schedule_command += " --cpu-spmv-backend scipy --no-cpp-mkl"
+    assert hd._schedule_commands(system, tr) == [schedule_command]
+    assert hd._schedule_commands(system, None) == [schedule_command]
 
 
 def test_call_passes_progress_information():
@@ -164,8 +178,12 @@ def test_call_passes_progress_information():
 
     ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
 
+    argstr = "test_progress"
+    if sys.platform == "darwin":
+        argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+
     runner.call.assert_called_once_with(
-        argstr="test_progress",
+        argstr=argstr,
         verbose=2,
         total=7,
         glob_name="hyst_test_progress/*.vtu",
@@ -181,6 +199,23 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.point_data["U"] = np.zeros(state.n_points)
     output_state.cell_data["mat_id"] = state.cell_data["region_id"]
     output_state.save(output_file)
+
+
+def _write_tommos_table(output_directory):
+    """Write controlled tabular TOMMOS output for isolated driver tests."""
+    (output_directory / "mammos_hysteresis.csv").write_text(
+        """# mammos csv v3
+Index,MagneticFluxDensity,MagneticPolarisation,EnergyDensity,EnergyDensity,
+,,,,,
+,,,,,
+,T,T,J / m3,J / m3,
+config,B_ext_T,J_par_T,E,gnorm,future_column
+0,-1,-0.9,120000,400,7
+1,0,0.1,100000,40,8
+2,1,0.95,90000,4,9
+""",
+        encoding="utf-8",
+    )
 
 
 def test_read_data_updates_system(state_zero, tmp_path, monkeypatch):
@@ -200,7 +235,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch):
     output_directory.mkdir()
     _write_tommos_output(state, output_directory / "state_cfg00010_B+1.0000e+00T.vtu", (0, 1, 0))
     _write_tommos_output(state, output_directory / "state_cfg00002_B-1.0000e+00T.vtu", (1, 0, 0))
-    (output_directory / "mammos_hysteresis.csv").write_text(SAMPLE_TABLE.read_text())
+    _write_tommos_table(output_directory)
     monkeypatch.chdir(tmp_path)
 
     ta.HysteresisDriver()._read_data(system)

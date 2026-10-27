@@ -1,9 +1,0 @@
-# mammos csv v3
-Index,MagneticFluxDensity,MagneticPolarisation,EnergyDensity,EnergyDensity,
-,,,,,
-,,,,,
-,T,T,J / m3,J / m3,
-config,B_ext_T,J_par_T,E,gnorm,future_column
-0,-1,-0.9,120000,400,7
-1,0,0.1,100000,40,8
-2,1,0.95,90000,4,9

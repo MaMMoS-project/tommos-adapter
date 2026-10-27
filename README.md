@@ -29,15 +29,6 @@ before your session ends.
 
 APIs and tutorials are available in the documentation. To access the documentation, use the badge in the table above.
 
-## Scalar output
-
-After a successful hysteresis calculation, ``system.table`` contains all columns
-from TOMMOS's ``mammos_hysteresis.csv``. The applied-field column ``B_ext_T`` is
-renamed to the Ubermag convention ``B_hysteresis``. The current output contains
-``config`` (dimensionless), ``B_hysteresis`` (T), ``J_par_T`` (T), ``E``
-(J/m3), and ``gnorm`` (J/m3). Units are read from the MaMMoS CSV metadata, and
-additional columns written by newer TOMMOS versions are retained automatically.
-
 ## Installation
 
 To install `tommos-adapter`, you can use `pip install tommos-adapter` inside a Python environment.

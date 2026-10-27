@@ -6,6 +6,7 @@ The only available driver is a `HysteresisDriver` as the only capability of `tom
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -57,6 +58,20 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+
+    def get_argstr(self, system: micromagneticmodel.System) -> str:
+        """Return string passed to the `tommos` call.
+
+        Args:
+            system: Micromagnetic system.
+
+        Returns:
+            Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
+        """
+        argstr = f"{system.name}"
+        if sys.platform == "darwin":
+            argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
@@ -140,7 +155,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = TommosRunner()
         runner.call(
-            argstr=system.name,
+            argstr=self.get_argstr(system),
             verbose=verbose,
             total=kwargs.get("n"),
             glob_name=f"hyst_{system.name}/*.vtu",
@@ -160,7 +175,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=system.name, dry_run=True)]
+        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
@@ -296,6 +311,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 "TOMMOS adapter currently supports only a uniform initial magnetization; "
                 "writing a restart VTU file is not implemented yet."
             )
+
+        if system.T != 0:
+            raise RuntimeError(f"`tommos` supports only T=0 K. Given temperature: {system.T} K.")
 
         try:
             scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
