@@ -18,6 +18,14 @@ def test_allowed_attributes():
         ta.HysteresisDriver(unexpected_argument=1)
 
 
+@pytest.mark.parametrize("name, index", [["name_1", 3], ["name_2", 6]])
+def test_get_argstr(name, index):
+    """Test `_get_argstr` in `HysteresisDriver` objects."""
+    system = mm.System(name=name)
+    hd = ta.HysteresisDriver()
+    assert hd.get_argstr(system, index) == f"{name}-{index} --mesh {name}.npz"
+
+
 @pytest.mark.parametrize(
     "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
     [
@@ -85,10 +93,11 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         "hx": hx,
         "hy": hy,
         "hz": hz,
-        "hstart": hstart,
-        "hfinal": hfinal,
-        "hstep": hstep,
-        "n": n,
+        "hstart": [hstart],
+        "hfinal": [hfinal],
+        "hstep": [hstep],
+        "n": [n],
+        "n_sweep": 1,
     }
 
 
@@ -109,11 +118,6 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         ({"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "n": 5}, RuntimeError, "Argument 'n' should not be provided"),
         ({"Hsteps": 3}, ValueError, "Argument `Hsteps` must be a sequence"),
         (
-            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5], [(1, 0, 0), (-1, 0, 0), 7]]},
-            NotImplementedError,
-            "Multi sweep is currently not implemented.",
-        ),
-        (
             {"Hsteps": [[(-1, 0), (1, 0, 0), 3]]},
             ValueError,
             "Hstart must be a one-dimensional array containing three numerical values.",
@@ -128,12 +132,12 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         (
             {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 3.0]]},
             ValueError,
-            "n \(number of field step\) must be an integer bigger than 2.",
+            r"n \(number of field step\) must be an integer bigger than 2.",
         ),
         (
             {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 1]]},
             ValueError,
-            "n \(number of field step\) must be an integer bigger than 2.",
+            r"n \(number of field step\) must be an integer bigger than 2.",
         ),
         ({"Hsteps": [[(1, 0, 0), (1, 0, 0), 3]]}, ValueError, "Hstart and Hend must differ."),
         ({"Hsteps": [[(1, 0, 0), (0, 1, 0), 3]]}, ValueError, "Hstart and Hend must be collinear with the origin"),
@@ -172,9 +176,9 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     hd._write_input_files(system, **kwargs)
     assert (tmp_path / "test_write_input_files_after_checking.npz").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
-    assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
+    assert (tmp_path / "test_write_input_files_after_checking-0.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
-    p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
+    p2_text = (tmp_path / "test_write_input_files_after_checking-0.p2").read_text()
     assert "size = 1.0000000000000001e-09" in p2_text
     assert "mx = 0" in p2_text
     assert "my = 0" in p2_text
@@ -195,7 +199,7 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     hd = ta.HysteresisDriver()
     tr = ta.TommosRunner()
-    schedule_command = "tommos loop test_schedule_command"
+    schedule_command = "tommos loop test_schedule_command-0 --mesh test_schedule_command.npz"
     if sys.platform == "darwin":
         schedule_command += " --cpu-spmv-backend scipy --no-cpp-mkl"
     assert hd._schedule_commands(system, tr) == [schedule_command]
@@ -207,9 +211,9 @@ def test_call_passes_progress_information():
     system = mm.System(name="test_progress")
     runner = Mock()
 
-    ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
+    ta.HysteresisDriver()._call(system, runner, verbose=2, n=7, n_sweep=1)
 
-    argstr = "test_progress"
+    argstr = "test_progress-0 --mesh test_progress.npz"
     if sys.platform == "darwin":
         argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
 
@@ -217,7 +221,7 @@ def test_call_passes_progress_information():
         argstr=argstr,
         verbose=2,
         total=7,
-        glob_name="hyst_test_progress/*.vtu",
+        glob_name="hyst_test_progress-0/*.vtu",
     )
 
 
@@ -245,7 +249,7 @@ def test_read_data_updates_only_magnetization(state_zero, tmp_path, monkeypatch)
     original_region = state.cell_data["region"].copy()
     original_point_data = state.point_data["custom_point_data"].copy()
 
-    output_directory = tmp_path / "hyst_read_data"
+    output_directory = tmp_path / "hyst_read_data-0"
     output_directory.mkdir()
     _write_tommos_output(state, output_directory / "state_cfg00010_B+1.0000e+00T.vtu", (0, 1, 0))
     _write_tommos_output(state, output_directory / "state_cfg00002_B-1.0000e+00T.vtu", (1, 0, 0))
@@ -269,6 +273,10 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
     magnetization_before_read = state.point_data["m"].copy()
     monkeypatch.chdir(tmp_path)
 
+    with pytest.raises(RuntimeError, match="No output directories found with prefix 'hyst_missing_output-'"):
+        ta.HysteresisDriver()._read_data(system)
+
+    (tmp_path / "hyst_missing_output-0").mkdir()
     with pytest.raises(RuntimeError, match="No TOMMOS VTU output found"):
         ta.HysteresisDriver()._read_data(system)
 
@@ -295,7 +303,7 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         output_state.points[0, 0] += 1
         error_message = "does not match system.m"
 
-    output_directory = tmp_path / "hyst_invalid_output"
+    output_directory = tmp_path / "hyst_invalid_output-0"
     output_directory.mkdir()
     output_state.save(output_directory / "state_cfg00000_B+0.0000e+00T.vtu")
     monkeypatch.chdir(tmp_path)

@@ -87,9 +87,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if not isinstance(Hsteps, Sequence):
             raise ValueError("Argument `Hsteps` must be a sequence of `(Hstart, Hend, n)`.")
 
-        hx_list = []
-        hy_list = []
-        hz_list = []
+        h = None
         hstart_list = []
         hfinal_list = []
         hstep_list = []
@@ -121,7 +119,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 if not np.isclose(relative_cross_product, 0, atol=1e-12):
                     raise ValueError("Hstart and Hend must be collinear with the origin.")
 
-            if not hx_list:
+            if h is None:
                 # direction `h` is not defined: we evaluate it by normalizing the field difference
                 h = field_difference / difference_norm
             else:
@@ -132,18 +130,15 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             hstart = float(np.vdot(h, Hstart) * mm.consts.mu0)
             hfinal = float(np.vdot(h, Hend) * mm.consts.mu0)
             hstep = (hfinal - hstart) / (Hn - 1)
-            hx_list.append(float(h[0]))
-            hy_list.append(float(h[1]))
-            hz_list.append(float(h[2]))
             hstart_list.append(hstart)
             hfinal_list.append(hfinal)
             hstep_list.append(hstep)
             n_list.append(Hn)
 
         kwargs.update(
-            hx=hx_list,
-            hy=hy_list,
-            hz=hz_list,
+            hx=float(h[0]),
+            hy=float(h[1]),
+            hz=float(h[2]),
             hstart=hstart_list,
             hfinal=hfinal_list,
             hstep=hstep_list,
@@ -158,7 +153,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         for index in range(kwargs["n_sweep"]):
-            p2_arguments = {name: kwargs[name][index] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
+            p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz")}
+            p2_arguments.update({name: kwargs[name][index] for name in ("hstart", "hfinal", "hstep")})
             p2_arguments.update(dict(self))
             Path(f"{system.name}-{index}.p2").write_text(
                 scripts.p2_script(
@@ -172,7 +168,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     def _get_output_directory(self, system: micromagneticmodel.System, index: int) -> os.PathLike:
         """Get output directory.
 
-        TODO: dosctring.
+        Args:
+            system: Micromagnetic system.
+            index: Index of the sweep in the multi-sweep run.
+
+        Returns:
+            Path of the output directory created by the requested sweep.
         """
         return Path(f"hyst_{system.name}-{index}")
 
@@ -181,10 +182,20 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
         After running a list of sweeps, we return the path of the latest sweep.
 
-        TODO: docstring.
+        Args:
+            system: Micromagnetic system.
+
+        Returns:
+            Path of the output directory created last.
+
+        Raises:
+            RuntimeError: No output directories found using the requested `system.name`.
         """
         prefix = f"hyst_{system.name}-"
-        max_index = max([int(p.name.lstrip(prefix)) for p in Path(".").glob(f"{prefix}*")])
+        all_indices = [int(p.name.lstrip(prefix)) for p in Path(".").glob(f"{prefix}*")]
+        if not all_indices:
+            raise RuntimeError(f"No output directories found with prefix '{prefix}'.")
+        max_index = max(all_indices)
         return self._get_output_directory(system, max_index)
 
     def _call(
@@ -206,20 +217,22 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             )
 
     def _schedule_commands(
-        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner, **kwargs: Any
     ) -> list[str]:
         """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
+            kwargs: Additional keyword arguments.
 
         Returns:
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
+        n_sweep = kwargs.get("n_sweep", 1)
+        return [runner._call(argstr=self.get_argstr(system, index), dry_run=True) for index in range(n_sweep)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
