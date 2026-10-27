@@ -140,6 +140,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
     assert (tmp_path / "test_write_input_files_after_checking.npz").is_file()
+    assert (tmp_path / "m0.vtu").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
