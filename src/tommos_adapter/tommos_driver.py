@@ -130,6 +130,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
         np.savez(f"{system.name}.npz", **mesh)
+        system.m.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
