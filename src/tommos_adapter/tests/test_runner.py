@@ -10,10 +10,12 @@ from tommos_adapter import TommosRunner
 
 
 def test_name():
+    """Expose the calculator name expected by the external-runner API."""
     assert TommosRunner().package_name == "Tommos"
 
 
 def test_call_dry_run():
+    """Construct the default TOMMOS command without executing it."""
     runner = TommosRunner()
     cmd = runner._call("hyst", dry_run=True)
     assert cmd == "tommos loop hyst"
@@ -27,11 +29,13 @@ def test_call_dry_run():
     ],
 )
 def test_call_dry_run_with_command_prefix(command, expected):
+    """Accept string and sequence forms of a multi-part command prefix."""
     runner = TommosRunner(command=command)
     assert runner._call("hyst", dry_run=True) == expected
 
 
 def test_call_dry_run_does_not_require_local_executable(monkeypatch):
+    """Keep dry-run command generation usable for remote scheduling."""
     which = Mock()
     monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", which)
 
@@ -40,6 +44,7 @@ def test_call_dry_run_does_not_require_local_executable(monkeypatch):
 
 
 def test_call_missing_executable(monkeypatch):
+    """Report a helpful error before executing a missing local command."""
     monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", lambda executable: None)
 
     with pytest.raises(OSError, match="command executable 'missing-tommos' was not found"):
@@ -47,6 +52,7 @@ def test_call_missing_executable(monkeypatch):
 
 
 def test_call_resolves_executable(monkeypatch):
+    """Resolve the command executable before invoking the subprocess."""
     run = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", lambda executable: "/resolved/tommos")
     monkeypatch.setattr("tommos_adapter.tommos_runner.subprocess.run", run)
@@ -63,6 +69,7 @@ def test_call_resolves_executable(monkeypatch):
 
 @pytest.mark.parametrize("command", ["", [], ["tommos", ""], ["tommos", 1]])
 def test_invalid_command(command):
+    """Reject empty commands and command parts that are not non-empty strings."""
     with pytest.raises(ValueError, match="sequence containing only non-empty strings"):
         TommosRunner(command=command)
 
