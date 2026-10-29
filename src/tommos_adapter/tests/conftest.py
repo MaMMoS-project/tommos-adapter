@@ -50,12 +50,13 @@ def write_mammos_table():
     def _write(filename):
         collection = me.EntityCollection(
             description="Synthetic TOMMOS hysteresis output.",
-            config=[0, 1, 2],
+            config=me.Entity("Index", [0, 1, 2]),
             B_ext_T=me.Entity("MagneticFluxDensity", [-1, 0, 1], "T"),
             J_par_T=me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T"),
             E=me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3"),
             gnorm=me.Entity("EnergyDensity", [400, 40, 4], "J / m3"),
-            future_column=[7, 8, 9],
+            # Deliberately unknown to the adapter to test preservation of extra columns.
+            additional_column=[7, 8, 9],
         )
         collection.to_csv(filename)
         return filename
