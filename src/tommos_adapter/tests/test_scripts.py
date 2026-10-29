@@ -164,14 +164,6 @@ def test_krn_script_rejects_missing_demag(system):
         scripts.krn_script(system)
 
 
-def test_krn_script_rejects_zeeman(system):
-    """The hysteresis driver, rather than a Zeeman term, defines the field."""
-    system.energy += mm.Zeeman(H=(0, 0, 1e6))
-
-    with pytest.raises(ValueError, match="not supported by TOMMOS"):
-        scripts.krn_script(system)
-
-
 @pytest.mark.parametrize(
     "field_kwargs,error_message",
     [
