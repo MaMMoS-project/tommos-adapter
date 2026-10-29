@@ -55,7 +55,6 @@ def write_mammos_table():
             J_par_T=me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T"),
             E=me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3"),
             gnorm=me.Entity("EnergyDensity", [400, 40, 4], "J / m3"),
-            # Deliberately unknown to the adapter to test preservation of extra columns.
             additional_column=[7, 8, 9],
         )
         collection.to_csv(filename)
