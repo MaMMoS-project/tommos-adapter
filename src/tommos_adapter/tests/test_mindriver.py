@@ -24,6 +24,7 @@ def test_allowed_attributes():
         (1, 0, 0),
         np.array([0, -2, 0]),
         [1, 1, 1],
+        [0, 0, 0],
     ],
 )
 def test_correct_zeeman(H):
@@ -33,13 +34,13 @@ def test_correct_zeeman(H):
     hd = ta.MinDriver()
     args = hd._get_required_p2_arguments(system, {})
     H_norm = np.linalg.norm(H)
-    h = np.array(H) / H_norm
+    h = np.array(H) / H_norm if H_norm else np.array(H)
     assert args == {
         "hx": h[0],
         "hy": h[1],
         "hz": h[2],
-        "hstart": H_norm,
-        "hfinal": H_norm,
+        "hstart": H_norm * mm.consts.mu0,
+        "hfinal": H_norm * mm.consts.mu0,
         "hstep": 0,
     }
 
