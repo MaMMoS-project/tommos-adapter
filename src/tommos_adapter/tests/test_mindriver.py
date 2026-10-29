@@ -21,9 +21,9 @@ def test_allowed_attributes():
 @pytest.mark.parametrize(
     "H",
     [
-        (1, 0, 0),
-        np.array([0, -2, 0]),
-        [1, 1, 1],
+        (1e6, 0, 0),
+        np.array([0, -2e6, 0]),
+        [1e6, 1e6, 1e6],
         [0, 0, 0],
     ],
 )
@@ -135,7 +135,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     system.m = state
-    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 2))
+    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 2e6))
     hd = ta.MinDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
     kwargs = {}
     monkeypatch.chdir(tmp_path)
