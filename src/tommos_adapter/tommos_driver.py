@@ -293,12 +293,15 @@ class MinDriver(Driver):
         - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
         - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
         - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
-        - ``hstart``: Start field magnitude.
-        - ``hfinal``: Final field magnitude.
+        - ``hstart``: Start field magnitude in Tesla.
+        - ``hfinal``: Final field magnitude in Tesla.
 
         Args:
             system: Micromagnetic system.
             kwargs: Given keyword arguments.
+
+        Returns:
+            Dictionary of parsed required argument for the `p2` input file.
         """
         if hasattr(system.energy, "zeeman"):
             zeeman = system.energy.zeeman
@@ -312,8 +315,9 @@ class MinDriver(Driver):
                 raise ValueError(f"External field given as a `discretisedfield.Field` is not supported. Given {H=}.`")
             else:
                 H_norm = np.linalg.norm(H)
-                h = np.array(H) / H_norm
+                h = np.array(H) / H_norm if H_norm else np.array(H)
                 hx, hy, hz = h
+                H_norm *= mm.consts.mu0
                 return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 0}
         else:
             return {}
