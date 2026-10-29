@@ -19,62 +19,18 @@ def test_allowed_attributes():
 
 
 @pytest.mark.parametrize(
-    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
+    "Hsteps,hx,hy,hz,hstart,hfinal,hstep",
     [
-        (
-            (-1, 0, 0),
-            (2, 0, 0),
-            6,
-            np.float64(1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(2),
-            np.float64(0.6),
-        ),
-        (
-            (1, 0, 0),
-            (-3, 0, 0),
-            5,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(3),
-            np.float64(1),
-        ),
-        (
-            (0, 0, -8),
-            (0, 0, 2),
-            21,
-            np.float64(0),
-            np.float64(0),
-            np.float64(1),
-            np.float64(-8),
-            np.float64(2),
-            np.float64(0.5),
-        ),
-        (
-            (2, 0, 0),
-            (0, 0, 0),
-            3,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-2),
-            np.float64(0),
-            np.float64(1),
-        ),
+        ([[(-1 / mm.consts.mu0, 0, 0), (2 / mm.consts.mu0, 0, 0), 6]], 1, 0, 0, -1, 2, 0.6),
+        ([[(1 / mm.consts.mu0, 0, 0), (-3 / mm.consts.mu0, 0, 0), 5]], -1, 0, 0, -1, 3, 1),
+        ([[(0, 0, -8 / mm.consts.mu0), (0, 0, 2 / mm.consts.mu0), 21]], 0, 0, 1, -8, 2, 0.5),
+        ([[(2 / mm.consts.mu0, 0, 0), (0, 0, 0), 3]], -1, 0, 0, -2, 0, 1),
     ],
 )
 @pytest.mark.parametrize("processor", ["_checkargs", "schedule_kwargs_setup", "drive_kwargs_setup"])
-def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
+def test_process_hysteresis_arguments_single_sweep(processor, Hsteps, hx, hy, hz, hstart, hfinal, hstep):
     """Test that field arguments are processed correctly."""
-    kwargs = {
-        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
-        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
-        "n": n,
-    }
+    kwargs = {"Hsteps": Hsteps}
     hd = ta.HysteresisDriver()
     getattr(hd, processor)(kwargs)
     assert kwargs == {
@@ -84,30 +40,186 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
         "hstart": hstart,
         "hfinal": hfinal,
         "hstep": hstep,
-        "n": n,
+        "n": Hsteps[0][2],
     }
 
 
 @pytest.mark.parametrize(
-    "kwargs, error_message",
+    "kwargs, expected_error, error_message",
     [
-        ({}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0)}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin must contain three numeric values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, np.nan, 0), "n": 3}, "Hmax must contain only finite values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 3.0}, "n must be an integer"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 1}, "n must be at least 2"),
-        ({"Hmin": (1, 0, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin and Hmax must differ"),
+        ({}, ValueError, "`Hsteps` must be provided"),
         (
-            {"Hmin": (1, 0, 0), "Hmax": (0, 1, 0), "n": 3},
-            "Hmin and Hmax must be collinear with the origin",
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "Hmin": (-1, 0, 0)},
+            RuntimeError,
+            "Argument `Hmin` should not be provided",
+        ),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "Hmax": (1, 0, 0)},
+            RuntimeError,
+            "Argument `Hmax` should not be provided",
+        ),
+        ({"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5]], "n": 5}, RuntimeError, "Argument `n` should not be provided"),
+        ({"Hsteps": 3}, ValueError, "Argument `Hsteps` must be a sequence"),
+        ({"Hsteps": []}, ValueError, "List of field sweeps is empty"),
+        (
+            {"Hsteps": [[(-1, 0, 0), (1, 0, 0), 5], [(1, 0, 0), (-1, 0, 0), 5]]},
+            NotImplementedError,
+            "Multi sweep is currently not implemented",
+        ),
+        ({"Hsteps": [[], [], []]}, NotImplementedError, "Multi sweep is currently not implemented"),
+    ],
+)
+def test_invalid_hysteresis_arguments(kwargs, expected_error, error_message):
+    """Invalid hysteresis arguments must produce helpful errors."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.HysteresisDriver()._checkargs(kwargs)
+
+
+@pytest.mark.parametrize(
+    "Hstep,hx,hy,hz,hstart,hfinal,hstep",
+    [
+        ([(-1 / mm.consts.mu0, 0, 0), (2 / mm.consts.mu0, 0, 0), 6], 1, 0, 0, -1, 2, 0.6),
+        ([(1 / mm.consts.mu0, 0, 0), (-3 / mm.consts.mu0, 0, 0), 5], -1, 0, 0, -1, 3, 1),
+        ([(0, 0, -8 / mm.consts.mu0), (0, 0, 2 / mm.consts.mu0), 21], 0, 0, 1, -8, 2, 0.5),
+        ([(2 / mm.consts.mu0, 0, 0), (0, 0, 0), 3], -1.0, 0.0, 0.0, -2.0, 0.0, 1.0),
+    ],
+)
+def test_parse_single_field_sweep(Hstep, hx, hy, hz, hstart, hfinal, hstep):
+    """Test parsing of single field sweep."""
+    assert ta.tommos_driver._parse_single_field_sweep(Hstep) == {
+        "hx": hx,
+        "hy": hy,
+        "hz": hz,
+        "hstart": hstart,
+        "hfinal": hfinal,
+        "hstep": hstep,
+        "n": Hstep[2],
+    }
+
+
+@pytest.mark.parametrize(
+    "Hstep, Hstart, Hend, Hn",
+    [
+        ([(1, 0, 0), (-1, 0, 0), 3], np.array([1, 0, 0]), np.array([-1, 0, 0]), 3),
+        ([[1, 1, 0], [-1, -1, 0], 4], np.array([1, 1, 0]), np.array([-1, -1, 0]), 4.0),
+        (((0, 0, -1), (0, 0, 1), 5), np.array([0, 0, -1]), np.array([0, 0, 1]), np.int64(5)),
+        ((np.array([0, 0, -1]), np.array([0, 0, 1]), 7), np.array([0, 0, -1]), np.array([0.0, 0.0, 1.0]), 7),
+    ],
+)
+def test_check_sweep(Hstep, Hstart, Hend, Hn):
+    """Test that a singular `Hstep` sweep is well parsed into `Hstart`, `Hend` and `Hn`."""
+    out = ta.tommos_driver._check_sweep(Hstep)
+    np.testing.assert_allclose(out[0], Hstart)
+    np.testing.assert_allclose(out[1], Hend)
+    assert out[2] == Hn
+
+
+@pytest.mark.parametrize(
+    "Hstep, expected_error, error_message",
+    [
+        ([(1, 0, 0), (-1, 0, 0)], ValueError, r"Field sweep must have the form `\(Hstart, Hend, n\)`"),
+        ([(1, 0, 0), (-1, 0, 0), 3, 5], ValueError, r"Field sweep must have the form `\(Hstart, Hend, n\)`"),
+        (
+            [(-1, 0, 0), (1, 0, 0), 3.0],
+            ValueError,
+            r"`n` \(number of field step\) must be an integer bigger than 2.",
+        ),
+        (
+            [(-1, 0, 0), (1, 0, 0), 1],
+            ValueError,
+            r"`n` \(number of field step\) must be an integer bigger than 2.",
         ),
     ],
 )
-def test_invalid_hysteresis_arguments(kwargs, error_message):
-    """Invalid hysteresis arguments must produce helpful errors."""
-    with pytest.raises(ValueError, match=error_message):
-        ta.HysteresisDriver()._checkargs(kwargs)
+def test_check_sweep_raises(Hstep, expected_error, error_message):
+    """Test that wrong `Hstep` objects raise errors."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.tommos_driver._check_sweep(Hstep)
+
+
+@pytest.mark.parametrize(
+    "H, expected",
+    [
+        ([1, 0, 0], np.array([1.0, 0.0, 0.0])),
+        ((0, 0, 8), np.array([0.0, 0.0, 8.0])),
+        (np.array([1, 2, 3]), np.array([1.0, 2.0, 3.0])),
+    ],
+)
+def test_check_field_value(H, expected):
+    """Test that correct field values are correctly converted to NumPy arrays."""
+    out = ta.tommos_driver._check_field_value(H, "")
+    assert isinstance(out, np.ndarray)
+    assert out.dtype == expected.dtype
+    np.testing.assert_allclose(out, expected)
+
+
+@pytest.mark.parametrize(
+    "H, expected_error, error_message",
+    [
+        ("string", RuntimeError, r"Conversion of field .* to NumPy array failed"),
+        (
+            (-1, 0),
+            ValueError,
+            "must be convertible to a one-dimensional array containing three numerical values",
+        ),
+        ((np.nan, 0, 0), ValueError, "must contain only finite values."),
+        ((0, 0, -np.nan), ValueError, "must contain only finite values."),
+    ],
+)
+def test_check_field_value_raises(H, expected_error, error_message):
+    """Test that incorrect field values raise errors."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.tommos_driver._check_field_value(H, "")
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, h",
+    [
+        (np.array([1, 0, 0]), np.array([-1, 0, 0]), np.array([-1, 0, 0])),
+        (np.array([0, 0, -1]), np.array([0, 0, 1]), np.array([0, 0, 1])),
+        (np.array([1, 1, 0]), np.array([-1, -1, 0]), np.array([-1 / np.sqrt(2), -1 / np.sqrt(2), 0])),
+    ],
+)
+def test_get_field_direction(Hstart, Hend, h):
+    """Test calculation of field direction from `Hstart` to `Hend`."""
+    np.testing.assert_allclose(ta.tommos_driver._get_field_direction(Hstart, Hend), h)
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, expected_error, error_message",
+    [
+        (np.array([1, 0, 0]), np.array([1, 0, 0]), ValueError, "Hstart and Hend must differ."),
+        (np.array([1, 0, 0]), np.array([0, 1, 0]), ValueError, "Hstart and Hend must be collinear with the origin"),
+    ],
+)
+def test_get_field_direction_raises(Hstart, Hend, expected_error, error_message):
+    """Test that errors are raised whne the field direction is unacceptable."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.tommos_driver._get_field_direction(Hstart, Hend)
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, Hn, expected",
+    [
+        (
+            np.array([1, 0, 0]),
+            np.array([-1, 0, 0]),
+            3,
+            {"hx": -1.0, "hy": 0.0, "hz": 0.0, "hstart": -1.0 * mm.consts.mu0, "hfinal": 1.0 * mm.consts.mu0},
+        ),
+        (
+            np.array([0, 0, -3]),
+            np.array([0, 0, 4]),
+            11,
+            {"hx": 0.0, "hy": 0.0, "hz": 1.0, "hstart": -3.0 * mm.consts.mu0, "hfinal": 4.0 * mm.consts.mu0},
+        ),
+    ],
+)
+def test_get_field_parameters(Hstart, Hend, Hn, expected):
+    """Test parsed field parameters in the right format for the `p2` input file."""
+    expected["n"] = Hn
+    expected["hstep"] = (expected["hfinal"] - expected["hstart"]) / (Hn - 1)
+    assert ta.tommos_driver._get_field_parameters(Hstart, Hend, Hn) == expected
 
 
 def test_invalid_temperature(state_zero):
@@ -131,11 +243,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     system.m = state
     system.energy = mm.Demag()
     hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    kwargs = {
-        "Hmin": (1 / mm.consts.mu0, 0, 0),
-        "Hmax": (-2 / mm.consts.mu0, 0, 0),
-        "n": 11,
-    }
+    kwargs = {"Hsteps": [[(1 / mm.consts.mu0, 0, 0), (-2 / mm.consts.mu0, 0, 0), 11]]}
     monkeypatch.chdir(tmp_path)
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
