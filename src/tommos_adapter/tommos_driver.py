@@ -67,7 +67,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
-        argstr = f"{system.name}"
+        argstr = f"{system.name} --add-shell"
         if sys.platform == "darwin":
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
         return argstr
@@ -196,40 +196,9 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
         try:
-            output_state = pv.read(last_output_file)
+            system.m = pv.read(last_output_file)
         except Exception as error:
             raise RuntimeError(f"Cannot read TOMMOS output '{last_output_file}'.") from error
-
-        if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' is not an UnstructuredGrid.")
-        if "m" not in output_state.point_data:
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' does not contain point data 'm'.")
-
-        magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (system.m.n_points, 3)
-        if magnetization.shape != expected_shape:
-            raise RuntimeError(
-                f"TOMMOS output magnetization has shape {magnetization.shape}; expected {expected_shape}."
-            )
-        if not np.all(np.isfinite(magnetization)):
-            raise RuntimeError("TOMMOS output magnetization contains non-finite values.")
-
-        matching_mesh = (
-            output_state.n_points == system.m.n_points
-            and output_state.n_cells == system.m.n_cells
-            and np.allclose(
-                output_state.points * scripts.DEFAULT_MESH_UNIT,
-                system.m.points,
-                rtol=1e-7,
-                atol=scripts.DEFAULT_MESH_UNIT * 1e-5,
-            )
-            and np.array_equal(output_state.celltypes, system.m.celltypes)
-            and np.array_equal(output_state.cell_connectivity, system.m.cell_connectivity)
-        )
-        if not matching_mesh:
-            raise RuntimeError(f"Mesh in TOMMOS output '{last_output_file}' does not match system.m.")
-
-        system.m.point_data["m"] = magnetization.copy()
 
         # TODO: update table information
         # system.table = table_from_file("output.csv", x=self._x)
