@@ -19,62 +19,20 @@ def test_allowed_attributes():
 
 
 @pytest.mark.parametrize(
-    "Bmin,Bmax,n,hx,hy,hz,hstart,hfinal,hstep",
+    "h_direction,h_start,h_final,n,hx,hy,hz,hstart,hfinal,hstep",
     [
-        (
-            (-1, 0, 0),
-            (2, 0, 0),
-            6,
-            np.float64(1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(2),
-            np.float64(0.6),
-        ),
-        (
-            (1, 0, 0),
-            (-3, 0, 0),
-            5,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-1),
-            np.float64(3),
-            np.float64(1),
-        ),
-        (
-            (0, 0, -8),
-            (0, 0, 2),
-            21,
-            np.float64(0),
-            np.float64(0),
-            np.float64(1),
-            np.float64(-8),
-            np.float64(2),
-            np.float64(0.5),
-        ),
-        (
-            (2, 0, 0),
-            (0, 0, 0),
-            3,
-            np.float64(-1),
-            np.float64(0),
-            np.float64(0),
-            np.float64(-2),
-            np.float64(0),
-            np.float64(1),
-        ),
+        ((1, 0, 0), -1, 2, 6, 1, 0, 0, -1, 2, 0.6),
+        ((-1, 1, 0), 1, -3, 5, -1 / np.sqrt(2), 1 / np.sqrt(2), 0, -1, 3, 1),
+        ((0, 0, 3), -8, 2, 21, 0, 0, 1, -8, 2, 0.5),
+        ((-1, 0, 0), 2, 0, 3, -1, 0, 0, -2, 0, 1),
     ],
 )
 @pytest.mark.parametrize("processor", ["_checkargs", "schedule_kwargs_setup", "drive_kwargs_setup"])
-def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hstart, hfinal, hstep):
+def test_process_hysteresis_arguments_single_sweep(
+    processor, h_direction, h_start, h_final, n, hx, hy, hz, hstart, hfinal, hstep
+):
     """Test that field arguments are processed correctly."""
-    kwargs = {
-        "Hmin": (Bmin[0] / mm.consts.mu0, Bmin[1] / mm.consts.mu0, Bmin[2] / mm.consts.mu0),
-        "Hmax": (Bmax[0] / mm.consts.mu0, Bmax[1] / mm.consts.mu0, Bmax[2] / mm.consts.mu0),
-        "n": n,
-    }
+    kwargs = {"h_direction": h_direction, "h_start": h_start, "h_final": h_final, "n": n}
     hd = ta.HysteresisDriver()
     getattr(hd, processor)(kwargs)
     assert kwargs == {
@@ -88,26 +46,136 @@ def test_process_hysteresis_arguments(processor, Bmin, Bmax, n, hx, hy, hz, hsta
     }
 
 
+@pytest.mark.parametrize("arg_to_remove", ["h_direction", "h_start", "h_final", "n"])
+def test_missing_required_parameters(arg_to_remove):
+    """Test error when missing required arguments."""
+    kwargs = {"h_direction": (0, 0, 1), "h_start": 1e6, "h_final": -2e6, "n": 13}
+    del kwargs[arg_to_remove]
+    with pytest.raises(ValueError, match="`h_direction`, `h_start`, `h_final`, and `n` must all be provided"):
+        ta.HysteresisDriver()._checkargs(kwargs)
+
+
+def test_check_direction():
+    pass  # TODO: test
+
+
+def test_check_direction_raises(h_direction):
+    """Test that wrong `n` argument raise errors."""
+    # TODO: parametrize
+    with pytest.raises(ValueError, match=r"`n` \(number of field step\) must be an integer bigger than 2."):
+        ta.tommos_driver._check_direction(h_direction)
+
+
+def test_check_field_magnitude():
+    pass  # TODO: test
+
+
+def test_check_field_magnitude_raises(h_val):
+    """Test that wrong `n` argument raise errors."""
+    # TODO: parametrize
+    with pytest.raises(ValueError, match=r"`n` \(number of field step\) must be an integer bigger than 2."):
+        ta.tommos_driver._check_field_magnitude(h_val)
+
+
+@pytest.mark.parametrize("n", [np.int64(3), 104])
+def test_number_field_steps(n):
+    ta.tommos_driver._check_number_field_steps(n)
+    pass
+
+
+@pytest.mark.parametrize("n", [3.0, -1, np.inf, np.nan, [3]])
+def test_number_field_steps_raises(n):
+    """Test that wrong `n` argument raise errors."""
+    with pytest.raises(ValueError, match=r"`n` \(number of field step\) must be an integer bigger than 2."):
+        ta.tommos_driver._check_number_field_steps(n)
+
+
+# TODO: check all tests below
+
+
 @pytest.mark.parametrize(
-    "kwargs, error_message",
+    "H, expected",
     [
-        ({}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0)}, "Hmin, Hmax, and n must all be provided"),
-        ({"Hmin": (-1, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin must contain three numeric values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, np.nan, 0), "n": 3}, "Hmax must contain only finite values"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 3.0}, "n must be an integer"),
-        ({"Hmin": (-1, 0, 0), "Hmax": (1, 0, 0), "n": 1}, "n must be at least 2"),
-        ({"Hmin": (1, 0, 0), "Hmax": (1, 0, 0), "n": 3}, "Hmin and Hmax must differ"),
+        ([1, 0, 0], np.array([1.0, 0.0, 0.0])),
+        ((0, 0, 8), np.array([0.0, 0.0, 8.0])),
+        (np.array([1, 2, 3]), np.array([1.0, 2.0, 3.0])),
+    ],
+)
+def test_check_field_value(H, expected):
+    """Test that correct field values are correctly converted to NumPy arrays."""
+    out = ta.tommos_driver._check_field_value(H, "")
+    assert isinstance(out, np.ndarray)
+    assert out.dtype == expected.dtype
+    np.testing.assert_allclose(out, expected)
+
+
+@pytest.mark.parametrize(
+    "H, expected_error, error_message",
+    [
+        ("string", RuntimeError, r"Conversion of field .* to NumPy array failed"),
         (
-            {"Hmin": (1, 0, 0), "Hmax": (0, 1, 0), "n": 3},
-            "Hmin and Hmax must be collinear with the origin",
+            (-1, 0),
+            ValueError,
+            "must be convertible to a one-dimensional array containing three numerical values",
+        ),
+        ((np.nan, 0, 0), ValueError, "must contain only finite values."),
+        ((0, 0, -np.nan), ValueError, "must contain only finite values."),
+    ],
+)
+def test_check_field_value_raises(H, expected_error, error_message):
+    """Test that incorrect field values raise errors."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.tommos_driver._check_field_value(H, "")
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, h",
+    [
+        (np.array([1, 0, 0]), np.array([-1, 0, 0]), np.array([-1, 0, 0])),
+        (np.array([0, 0, -1]), np.array([0, 0, 1]), np.array([0, 0, 1])),
+        (np.array([1, 1, 0]), np.array([-1, -1, 0]), np.array([-1 / np.sqrt(2), -1 / np.sqrt(2), 0])),
+    ],
+)
+def test_get_field_direction(Hstart, Hend, h):
+    """Test calculation of field direction from `Hstart` to `Hend`."""
+    np.testing.assert_allclose(ta.tommos_driver._get_field_direction(Hstart, Hend), h)
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, expected_error, error_message",
+    [
+        (np.array([1, 0, 0]), np.array([1, 0, 0]), ValueError, "Hstart and Hend must differ."),
+        (np.array([1, 0, 0]), np.array([0, 1, 0]), ValueError, "Hstart and Hend must be collinear with the origin"),
+    ],
+)
+def test_get_field_direction_raises(Hstart, Hend, expected_error, error_message):
+    """Test that errors are raised whne the field direction is unacceptable."""
+    with pytest.raises(expected_error, match=error_message):
+        ta.tommos_driver._get_field_direction(Hstart, Hend)
+
+
+@pytest.mark.parametrize(
+    "Hstart, Hend, Hn, expected",
+    [
+        (
+            np.array([1, 0, 0]),
+            np.array([-1, 0, 0]),
+            3,
+            {"hx": -1.0, "hy": 0.0, "hz": 0.0, "hstart": -1.0 * mm.consts.mu0, "hfinal": 1.0 * mm.consts.mu0},
+        ),
+        (
+            np.array([0, 0, -3]),
+            np.array([0, 0, 4]),
+            11,
+            {"hx": 0.0, "hy": 0.0, "hz": 1.0, "hstart": -3.0 * mm.consts.mu0, "hfinal": 4.0 * mm.consts.mu0},
         ),
     ],
 )
-def test_invalid_hysteresis_arguments(kwargs, error_message):
-    """Invalid hysteresis arguments must produce helpful errors."""
-    with pytest.raises(ValueError, match=error_message):
-        ta.HysteresisDriver()._checkargs(kwargs)
+def test_get_field_parameters(Hstart, Hend, Hn, expected):
+    """Test parsed field parameters in the right format for the `p2` input file."""
+    expected["n"] = Hn
+    expected["hstep"] = (expected["hfinal"] - expected["hstart"]) / (Hn - 1)
+    assert ta.tommos_driver._get_field_parameters(Hstart, Hend, Hn) == expected
 
 
 def test_invalid_temperature(state_zero):
@@ -131,11 +199,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     system.m = state
     system.energy = mm.Demag()
     hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    kwargs = {
-        "Hmin": (1 / mm.consts.mu0, 0, 0),
-        "Hmax": (-2 / mm.consts.mu0, 0, 0),
-        "n": 11,
-    }
+    kwargs = {"Hsteps": [[(1 / mm.consts.mu0, 0, 0), (-2 / mm.consts.mu0, 0, 0), 11]]}
     monkeypatch.chdir(tmp_path)
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
