@@ -61,11 +61,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, **kwargs: Any) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            **kwargs: Eventual keyword arguments passed to the runner call.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
@@ -73,6 +74,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         argstr = f"{system.name}"
         if sys.platform == "darwin":
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        if kwargs.get("loop"):
+            argstr += " --loop"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
@@ -92,8 +95,10 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 raise ValueError(f"List of field sweeps is empty: {Hsteps=}.")
             case 1:
                 kwargs.update(_parse_single_field_sweep(Hsteps[0]))
+            case 2:
+                kwargs.update(_parse_double_field_sweep(*Hsteps))
             case _:
-                raise NotImplementedError("Multi sweep is currently not implemented.")
+                raise ValueError(f"More than two symmetric sweeps are not allowed. Given {Hsteps=}.")
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
@@ -123,27 +128,31 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = TommosRunner()
         runner.call(
-            argstr=self.get_argstr(system),
+            argstr=self.get_argstr(system, **kwargs),
             verbose=verbose,
             total=kwargs.get("n"),
             glob_name=f"hyst_{system.name}/*.vtu",
         )
 
     def _schedule_commands(
-        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+        self,
+        system: micromagneticmodel.System,
+        runner: tommos_adapter.tommos_runner.TommosRunner,
+        **kwargs: Any,
     ) -> list[str]:
         """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
+            **kwargs: Eventual keyword arguments passed to the scheduler call.
 
         Returns:
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
+        return [runner._call(argstr=self.get_argstr(system, **kwargs), dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
@@ -301,7 +310,36 @@ def _parse_single_field_sweep(Hstep: Sequence[tuple, tuple, int]) -> dict[str, A
         Parsed field parameters according to `p2` input file syntax.
     """
     Hstart, Hend, Hn = _check_sweep(Hstep)
-    return _get_field_parameters(Hstart, Hend, Hn)
+    return _get_field_parameters(Hstart, Hend, Hn, loop=False)
+
+
+def _parse_double_field_sweep(
+    Hstep_1: Sequence[tuple, tuple, int], Hstep_2: Sequence[tuple, tuple, int]
+) -> dict[str, Any]:
+    """Parse double field sweep (full hysteresis loop).
+
+    Args:
+        Hstep_1: Field sweep parameters as a `(Hstart, Hend, n)`. Fields `Hstart` and `Hend` are sequences
+            of three numbers representing the field vectors and integer `n` is the number of field steps.
+        Hstep_2: Field sweep parameters in the same format as `Hstep_1`. As only the full hysteresis loop
+            is allowed in the same driver call, this is expected to be symmetric (w.r.t. the origin) to the first
+            argument with the same number of steps, namely equal (or close enough) to `(-Hstart, -Hend, n)`.
+
+    Returns:
+        Parsed field parameters according to `p2` input file syntax.
+
+    Raises:
+        ValueError: The given `Hstep` arguments do not describe a symmetric hysteresis loop.
+    """
+    Hstart_1, Hend_1, Hn_1 = _check_sweep(Hstep_1)
+    Hstart_2, Hend_2, Hn_2 = _check_sweep(Hstep_2)
+    if not (np.allclose(Hstart_1, -Hstart_2) and np.allclose(Hend_1, -Hend_2) and Hn_1 == Hn_2):
+        raise ValueError(
+            "The only supported multi-sweep is a full symmetric hysteresis loop. "
+            "The field start and end points should be symmetric with the respect to the origin and "
+            f"the number of steps should be the same. Given {Hstep_1=} and {Hstep_2=}."
+        )
+    return _get_field_parameters(Hstart_1, Hend_1, Hn_1, loop=True)
 
 
 def _check_sweep(Hstep: Sequence[Any]) -> tuple(tuple, tuple, int):
@@ -386,13 +424,16 @@ def _get_field_direction(Hstart: numpy.typing.ArrayLike, Hend: numpy.typing.Arra
     return field_difference / difference_norm
 
 
-def _get_field_parameters(Hstart: numpy.typing.ArrayLike, Hend: numpy.typing.ArrayLike, Hn: int) -> dict[str, Any]:
+def _get_field_parameters(
+    Hstart: numpy.typing.ArrayLike, Hend: numpy.typing.ArrayLike, Hn: int, loop: bool = False
+) -> dict[str, Any]:
     """Get field parameters in the right format for the `p2` input file.
 
     Args:
         Hstart: Starting external field array as a one-dimensional NumPy array of length 3 in A/m.
         Hend: Ending external field array as a one-dimensional NumPy array of length 3 in A/m.
         Hn: Number of field steps.
+        loop: Whether to execute a full (symmetric) loop in the same `tommos` call.
 
     Returns:
         Dictionary of values to write to `p2` input files. Field values are understood as polarization in Tesla.
@@ -408,4 +449,5 @@ def _get_field_parameters(Hstart: numpy.typing.ArrayLike, Hend: numpy.typing.Arr
         "hfinal": float(hfinal),
         "hstep": float((hfinal - hstart) / (Hn - 1)),
         "n": int(Hn),
+        "loop": loop,
     }
