@@ -31,11 +31,10 @@ def test_align_external_field(state_zero, tmp_path, sign):
     system.energy = mm.Exchange(A=A) + mm.UniaxialAnisotropy(K=K, u=u) + mm.Demag()
 
     # Drive system
-    Hmin = (-sign / mm.consts.mu0, 0, 0)
-    Hmax = (sign / mm.consts.mu0, 0, 0)
-    n = 5
     hd = ta.HysteresisDriver()
-    hd.drive(system, dirname=tmp_path, Hmin=Hmin, Hmax=Hmax, n=n)
+    hd.drive(
+        system, dirname=tmp_path, h_direction=(sign, 0, 0), h_start=-1 / mm.consts.mu0, h_final=1 / mm.consts.mu0, n=5
+    )
 
     # Read final magnetization
     mag_array = system.m.get_array("m")
