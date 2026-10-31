@@ -2,14 +2,24 @@
 
 import numpy as np
 import pytest
-
-# The remaining shared tests assume LLG-specific columns such as t, mx, and my,
-# which are not part of TOMMOS hysteresis output.
-from ubermagtable.testing.table import test_table_attributes as test_table_attributes
-from ubermagtable.testing.table import test_table_columns as test_table_columns
-from ubermagtable.testing.table import test_table_init as test_table_init
+from ubermagtable.testing import table as table_testing
+from ubermagtable.testing.table import *  # noqa: F403
 
 from tommos_adapter.plugins import table_from_file
+
+test_table_units = pytest.mark.skip(
+    reason=(
+        "The shared test assumes an energy column in J, but TOMMOS "
+        "hysteresis output contains energy-density columns in J/m3."
+    )
+)(table_testing.test_table_units)
+
+test_table_mpl = pytest.mark.skip(
+    reason=(
+        "The shared plotting test assumes LLG-specific mx and my columns, "
+        "which TOMMOS hysteresis output does not provide."
+    )
+)(table_testing.test_table_mpl)
 
 
 @pytest.fixture
@@ -21,6 +31,30 @@ def table_factory(tmp_path, write_mammos_table):
         return table_from_file(table_file, **kwargs)
 
     return _factory
+
+
+@pytest.fixture
+def table_llg_factory():
+    """Skip shared table tests for unsupported LLG output."""
+    pytest.skip("TOMMOS does not provide LLG table output.")
+
+
+@pytest.fixture
+def table_llg_25ps():
+    """Skip shared table tests for unsupported LLG output."""
+    pytest.skip("TOMMOS does not provide LLG table output.")
+
+
+@pytest.fixture
+def table_minimisation_factory():
+    """Skip shared table tests for unsupported minimisation output."""
+    pytest.skip("TOMMOS does not provide minimisation table output.")
+
+
+@pytest.fixture
+def table_hysteresis_factory(table_factory):
+    """Return the supported TOMMOS hysteresis table factory."""
+    return table_factory
 
 
 def test_table_from_file(table_factory):
