@@ -28,11 +28,11 @@ def test_table_from_file(table_factory):
     table = table_factory(x="B_hysteresis")
 
     assert table.x == "B_hysteresis"
-    assert list(table.data.columns) == ["config", "B_hysteresis", "J_par_T", "E", "gnorm", "additional_column"]
+    assert list(table.data.columns) == ["config", "B_hysteresis", "J_par", "E", "gnorm", "additional_column"]
     assert table.units == {
         "config": "",
         "B_hysteresis": "T",
-        "J_par_T": "T",
+        "J_par": "T",
         "E": "J / m3",
         "gnorm": "J / m3",
         "additional_column": "",
