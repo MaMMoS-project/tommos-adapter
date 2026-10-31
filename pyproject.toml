@@ -23,14 +23,18 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+  "mammos-entity>=0.14",
   "numpy",
   "tommos @ https://github.com/MaMMoS-project/tommos.git",
   # "micromagneticdata @ https://github.com/ubermag/micromagneticdata.git",
   "micromagneticmodel @ https://github.com/ubermag/micromagneticmodel.git",
   # "micromagnetictests @ https://github.com/ubermag/micromagnetictests.git",
-  # "ubermagtable @ https://github.com/ubermag/ubermagtable.git",
+  "ubermagtable @ git+https://github.com/ubermag/ubermagtable.git@master",
   "pyvista[all]",
 ]
+
+[project.entry-points."micromagneticdata.plugins.read_table"]
+tommos_adapter = "tommos_adapter.plugins.read_table:table_from_file"
 
 [project.urls]
 Homepage = "https://MaMMoS-project.github.io"

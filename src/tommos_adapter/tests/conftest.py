@@ -3,6 +3,7 @@
 import shlex
 import subprocess
 
+import mammos_entity as me
 import micromagneticmodel as mm
 import numpy as np
 import pytest
@@ -40,3 +41,23 @@ def state_zero(mesh):
     state.point_data["m"] = m
     state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
     return state
+
+
+@pytest.fixture
+def write_mammos_table():
+    """Return a factory writing synthetic TOMMOS tabular output."""
+
+    def _write(filename):
+        collection = me.EntityCollection(
+            description="Synthetic TOMMOS hysteresis output.",
+            config=me.Entity("Index", [0, 1, 2]),
+            B_ext_T=me.Entity("MagneticFluxDensity", [-1, 0, 1], "T"),
+            J_par_T=me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T"),
+            E=me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3"),
+            gnorm=me.Entity("EnergyDensity", [400, 40, 4], "J / m3"),
+            additional_column=[7, 8, 9],
+        )
+        collection.to_csv(filename)
+        return filename
+
+    return _write
