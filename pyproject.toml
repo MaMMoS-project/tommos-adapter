@@ -85,6 +85,8 @@ pytest-cov = "*"
 ruff = "*"
 towncrier = "*"
 twine = "*"
+neper = ">=5.0.0,<6"
+trame-jupyter-extension = ">=2.1.4,<3"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
