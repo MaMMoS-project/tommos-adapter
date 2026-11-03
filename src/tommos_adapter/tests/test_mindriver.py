@@ -41,7 +41,6 @@ def test_correct_zeeman(H):
         "hz": h[2],
         "hstart": H_norm * mm.consts.mu0,
         "hfinal": H_norm * mm.consts.mu0,
-        "hstep": 0,
     }
 
 
@@ -50,7 +49,7 @@ def test_without_zeeman():
     system = mm.System(name="test_no_zeeman")
     system.energy = mm.Demag()
     hd = ta.MinDriver()
-    assert hd._get_required_p2_arguments(system, {}) == {}
+    assert hd._get_required_p2_arguments(system, {}) == {"hstart": 0.0, "hfinal": 0.0}
 
 
 def test_wrong_zeeman_dict():
@@ -98,7 +97,7 @@ def test_check_system_unsupported_energies(state_zero):
     state.point_data["m"][:, 0] = 1
     system.m = state
     system.energy = mm.Demag() + mm.RKKY()
-    hd = ta.HysteresisDriver()
+    hd = ta.MinDriver()
     with pytest.raises(ValueError, match=r"Energy term RKKY\(\) is not supported by this driver"):
         hd._check_system(system)
 

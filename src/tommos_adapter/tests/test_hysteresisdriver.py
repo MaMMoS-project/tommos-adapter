@@ -13,8 +13,8 @@ import tommos_adapter as ta
 
 def test_allowed_attributes():
     assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
-    driver = ta.HysteresisDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    assert dict(driver) == {"max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
+    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
+    assert dict(driver) == {"mstep": 1, "method": "tr", "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
     with pytest.raises(AttributeError, match="Invalid attribute key"):
         ta.HysteresisDriver(unexpected_argument=1)
 
@@ -341,9 +341,9 @@ def test_check_system_unsupported_energies(state_zero):
     state = state_zero.copy()
     state.point_data["m"][:, 0] = 1
     system.m = state
-    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1))
+    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1 / mm.consts.mu0))
     hd = ta.HysteresisDriver()
-    with pytest.raises(ValueError, match=r"Energy term Zeeman\(H=\(0, 0, 1\)\) is not supported by this driver"):
+    with pytest.raises(ValueError, match="Energy term Zeeman.* is not supported by this driver"):
         hd._check_system(system)
 
 
