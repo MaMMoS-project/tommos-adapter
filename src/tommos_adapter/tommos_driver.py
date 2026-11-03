@@ -300,7 +300,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         return "B_hysteresis"
 
 
-def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.typing.ArrayLike:
+def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
     """Check field value and convert it to normalized NumPy array.
 
     Args:
