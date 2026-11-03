@@ -33,7 +33,12 @@ def test_align_external_field(state_zero, tmp_path, sign):
     # Drive system
     hd = ta.HysteresisDriver()
     hd.drive(
-        system, dirname=tmp_path, h_direction=(1, 0, 0), h_start=-sign / mm.consts.mu0, h_final=sign / mm.consts.mu0, n=5
+        system,
+        dirname=tmp_path,
+        h_direction=(1, 0, 0),
+        h_start=-sign / mm.consts.mu0,
+        h_final=sign / mm.consts.mu0,
+        n=5,
     )
 
     # Read final magnetization
