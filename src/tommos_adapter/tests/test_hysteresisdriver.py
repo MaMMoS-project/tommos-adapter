@@ -390,9 +390,9 @@ def test_check_system_unsupported_energies(state_zero):
     state = state_zero.copy()
     state.point_data["m"][:, 0] = 1
     system.m = state
-    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1))
+    system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1 / mm.consts.mu0))
     hd = ta.HysteresisDriver()
-    with pytest.raises(ValueError, match=r"Energy term Zeeman\(H=\(0, 0, 1\)\) is not supported by this driver"):
+    with pytest.raises(ValueError, match="Energy term Zeeman.* is not supported by this driver"):
         hd._check_system(system)
 
 

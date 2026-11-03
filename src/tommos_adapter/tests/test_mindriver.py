@@ -11,7 +11,7 @@ import tommos_adapter as ta
 
 
 def test_allowed_attributes():
-    assert ta.MinDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    assert ta.MinDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
     driver = ta.MinDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
     assert dict(driver) == {"max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
     with pytest.raises(AttributeError, match="Invalid attribute key"):
@@ -41,7 +41,6 @@ def test_correct_zeeman(H):
         "hz": h[2],
         "hstart": H_norm * mm.consts.mu0,
         "hfinal": H_norm * mm.consts.mu0,
-        "hstep": 0,
     }
 
 
@@ -50,7 +49,7 @@ def test_without_zeeman():
     system = mm.System(name="test_no_zeeman")
     system.energy = mm.Demag()
     hd = ta.MinDriver()
-    assert hd._get_required_p2_arguments(system, {}) == {}
+    assert hd._get_required_p2_arguments(system, {}) == {"hstart": 0.0, "hfinal": 0.0}
 
 
 def test_wrong_zeeman_dict():
@@ -98,7 +97,7 @@ def test_check_system_unsupported_energies(state_zero):
     state.point_data["m"][:, 0] = 1
     system.m = state
     system.energy = mm.Demag() + mm.RKKY()
-    hd = ta.HysteresisDriver()
+    hd = ta.MinDriver()
     with pytest.raises(ValueError, match=r"Energy term RKKY\(\) is not supported by this driver"):
         hd._check_system(system)
 
@@ -163,7 +162,7 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     hd = ta.MinDriver()
     tr = ta.TommosRunner()
-    schedule_command = "tommos loop test_schedule_command"
+    schedule_command = "tommos loop test_schedule_command --add-shell"
     if sys.platform == "darwin":
         schedule_command += " --cpu-spmv-backend scipy --no-cpp-mkl"
     assert hd._schedule_commands(system, tr) == [schedule_command]

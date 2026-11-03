@@ -69,7 +69,7 @@ class Driver(mm.adapter_base.ExternalDriver):
         """Check driver arguments in-place."""
 
     @abc.abstractmethod
-    def _get_required_p2_arguments(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
         """Get arguments that are required for the ``p2`` input file."""
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
@@ -313,9 +313,9 @@ class MinDriver(Driver):
                 h = np.array(H) / H_norm if H_norm else np.array(H)
                 hx, hy, hz = h
                 H_norm *= mm.consts.mu0
-                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 1}
+                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm}
         else:
-            return {}
+            return {"hstart": 0.0, "hfinal": 0.0}
 
 
 class HysteresisDriver(Driver):
