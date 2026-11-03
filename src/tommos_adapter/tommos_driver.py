@@ -30,9 +30,9 @@ if TYPE_CHECKING:
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
-    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the argument ``Hsteps``,
-    specifying a curve in the form ``(Hstart, Hend, n)``. Objects ``Hstart`` and ``Hend`` are one-dimensional
-    arrays of length 3, specified in A/m and must lie on a common axis through the origin.
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the arguments ``h_direction``,
+    an iterable representing the unit vector of the direction of the external field, ``h_start``, the initial magnitude,
+    ``h_final``, the final magnitude``, and ``n``, the number of field steps.
 
     Examples:
         1. Defining a driver.
