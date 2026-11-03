@@ -77,11 +77,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
-        """Validate and convert hysteresis arguments to TOMMOS parameters.
-
-        Args:
-            kwargs: Additional parameters passed as a dictionary.
-        """
+        """Validate and convert hysteresis arguments to TOMMOS parameters."""
         required_arguments = {"h_direction", "h_start", "h_final", "n"}
         if not required_arguments.issubset(kwargs):
             raise ValueError("`h_direction`, `h_start`, `h_final`, and `n` must all be provided.")
