@@ -81,7 +81,11 @@ channels = [ "conda-forge" ]
 platforms = [ "osx-arm64", "linux-64", "osx-64" ]
 
 [tool.pixi.dependencies]
-python = "==3.11"
+python = ">=3.11"
+mammos-analysis = ">=0.6.0"
+mammos-dft = ">=0.5.0"
+mammos-spindynamics = ">=0.4.0"
+mammos-units = ">=0.3.2"
 hatch = "*"
 ipython = "*"
 jupyterlab = ">3"
