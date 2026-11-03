@@ -74,6 +74,7 @@ pydocstyle.convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["B018"]  # "Found useless expression. Either assign it to a variable or remove it."; false positives when using implicit __repr__ in the notebook
 "src/tommos_adapter/tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
+"examples/*" = ["D103"]  # do not enforce docstrings in notebooks
 
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
@@ -95,6 +96,7 @@ twine = "*"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
+trame-pyvista = "*"
 
 [tool.pixi.tasks]
 build-dists = {cmd="rm -rf dist && hatch build -t sdist -t wheel && twine check dist/*", description="Build and check sdist and wheel."}
