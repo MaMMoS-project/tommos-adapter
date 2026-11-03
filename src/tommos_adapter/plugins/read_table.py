@@ -1,4 +1,4 @@
-"""Read TOMMOS tabular output."""
+"""Read tommos tabular output."""
 
 from __future__ import annotations
 
@@ -22,16 +22,14 @@ def table_from_file(
     """Read a MaMMoS CSV file as an Ubermag table.
 
     See the
-    `TOMMOS output documentation <https://github.com/MaMMoS-project/tommos#5-output>`_
-    for details on the tabular output. Units are taken from the file metadata
-    rather than hard-coded, and additional columns are preserved. With
-    ``rename=True``, known TOMMOS column names are converted to Ubermag-compatible
-    names.
+    `tommos output documentation <https://github.com/MaMMoS-project/tommos#5-output>`_
+    for details on the tabular output. With ``rename=True``, known tommos column
+    names are converted to shorter names.
 
     Args:
-        filename: MaMMoS CSV file produced by TOMMOS.
+        filename: MaMMoS CSV file produced by tommos.
         x: Independent-variable column name.
-        rename: Whether to apply known Ubermag column names.
+        rename: Whether to apply shorter names to known tommos columns.
 
     Returns:
         Table containing all CSV columns, units, and MaMMoS metadata.
