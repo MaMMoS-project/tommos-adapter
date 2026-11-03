@@ -26,7 +26,7 @@ dependencies = [
   "mammos-entity>=0.14",
   "numpy",
   "tommos @ https://github.com/MaMMoS-project/tommos.git",
-  # "micromagneticdata @ https://github.com/ubermag/micromagneticdata.git",
+  "micromagneticdata @ git+https://github.com/ubermag/micromagneticdata.git",
   "micromagneticmodel @ https://github.com/ubermag/micromagneticmodel.git",
   # "micromagnetictests @ https://github.com/ubermag/micromagnetictests.git",
   "ubermagtable @ git+https://github.com/ubermag/ubermagtable.git@master",
