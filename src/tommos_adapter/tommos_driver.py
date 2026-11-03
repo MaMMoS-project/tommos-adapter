@@ -313,7 +313,7 @@ class MinDriver(Driver):
                 h = np.array(H) / H_norm if H_norm else np.array(H)
                 hx, hy, hz = h
                 H_norm *= mm.consts.mu0
-                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 0}
+                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm, "hstep": 1}
         else:
             return {}
 
