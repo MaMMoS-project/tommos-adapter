@@ -79,6 +79,7 @@ platforms = [ "osx-arm64", "linux-64", "osx-64" ]
 
 [tool.pixi.dependencies]
 python = "==3.11"
+mammos = "==0.13.0"
 hatch = "*"
 ipython = "*"
 jupyterlab = ">3"
