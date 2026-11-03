@@ -311,7 +311,7 @@ def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
 
     Raises:
         RuntimeError: Given direction is not convertible to a numeric NumPy array.
-        RuntimeErro: Given direction is not convertible to a one-dimensional array of three numerical values.
+        RuntimeError: Given direction is not convertible to a one-dimensional array of three numerical values.
         ValueError: Given direction contains infinite values.
         ValueError: Given direction has zero magnitude.
     """
