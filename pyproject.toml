@@ -23,7 +23,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-  "mammos-entity>=0.14",
+  "mammos-entity>=0.13",
   "numpy",
   "tommos @ https://github.com/MaMMoS-project/tommos.git",
   "micromagneticdata @ git+https://github.com/ubermag/micromagneticdata.git",
