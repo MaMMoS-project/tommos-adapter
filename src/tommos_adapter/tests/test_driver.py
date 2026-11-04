@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import micromagneticmodel as mm
 import numpy as np
 import pytest
+import pyvista as pv
 
 import tommos_adapter as ta
 
@@ -219,7 +220,6 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-@pytest.mark.xfail
 def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table):
     """Read the last TOMMOS state and table while retaining grid metadata."""
     state = state_zero.copy()
@@ -265,6 +265,35 @@ def test_read_data_requires_table(state_zero, tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="Cannot read TOMMOS table"):
         ta.HysteresisDriver()._read_data(system)
+
+
+def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_table):
+    """Map magnetization back from output with airbox nodes and reordered points."""
+    state = state_zero.copy()
+    state.point_data["m"][:, 2] = 1
+    system = mm.System(name="airbox", m=state)
+    expected = np.random.default_rng(0).normal(size=(state.n_points, 3))
+    expected /= np.linalg.norm(expected, axis=1, keepdims=True)
+
+    airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
+    points = np.vstack([state.points / ta.scripts.DEFAULT_MESH_UNIT, airbox_points]).astype(np.float32)
+    magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
+    connectivity = np.vstack([state.cell_connectivity.reshape(-1, 4), np.arange(4) + state.n_points])
+    order = np.random.default_rng(1).permutation(len(points))
+    new_index = np.argsort(order)
+    output_state = pv.UnstructuredGrid({pv.CellType.TETRA: new_index[connectivity]}, points[order])
+    output_state.point_data["m"] = magnetization[order]
+
+    output_directory = tmp_path / "hyst_airbox"
+    output_directory.mkdir()
+    output_state.save(output_directory / "state_cfg00000_B+0.0000e+00T.vtu")
+    write_mammos_table(output_directory / "mammos_hysteresis.csv")
+    monkeypatch.chdir(tmp_path)
+
+    ta.HysteresisDriver()._read_data(system)
+
+    assert system.m.n_points == state.n_points
+    np.testing.assert_allclose(system.m.point_data["m"], expected, atol=1e-7)
 
 
 def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):

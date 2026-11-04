@@ -41,13 +41,7 @@ def test_align_external_field(state_zero, tmp_path, sign):
         n=5,
     )
 
-    # Extract magnetization field only in the magnetic region
-    output = system.m.copy()
-    original_ids = np.unique(state.cell_data["region_id"])
-    valid_cells = output.cell_data["mat_id"] == original_ids
-    extracted = output.extract_cells(valid_cells)
-
     # Check orientation of normalized average magnetization
-    avg_magnetization = np.mean(extracted.point_data["m"], axis=0)
+    avg_magnetization = np.mean(system.m.point_data["m"], axis=0)
     normalized_avg_magnetization = avg_magnetization / np.linalg.norm(avg_magnetization)
     np.testing.assert_allclose(normalized_avg_magnetization[0], sign, rtol=1e-3)
