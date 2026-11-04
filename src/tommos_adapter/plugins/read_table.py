@@ -37,12 +37,13 @@ def table_from_file(
     collection = me.from_csv(filename)
     data = collection.to_dataframe()
     metadata = collection.metadata()
+    metadata.pop("description", None)
 
     if rename:
         data = data.rename(columns=_COLUMN_RENAMES)
         metadata = {_COLUMN_RENAMES.get(name, name): values for name, values in metadata.items()}
 
-    units = {name: values.get("unit", "") for name, values in metadata.items()}
+    units = {name: values.get("unit", "") for name, values in metadata.items() if name != "description"}
     attributes = {
         "mammos": {
             "description": collection.description,
