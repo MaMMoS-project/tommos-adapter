@@ -15,6 +15,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
+from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
 if TYPE_CHECKING:
@@ -229,10 +230,14 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if not matching_mesh:
             raise RuntimeError(f"Mesh in TOMMOS output '{last_output_file}' does not match system.m.")
 
-        system.m.point_data["m"] = magnetization.copy()
+        table_file = output_directory / "mammos_hysteresis.csv"
+        try:
+            table = table_from_file(table_file, x=self._x)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise RuntimeError(f"Cannot read TOMMOS table '{table_file}'.") from error
 
-        # TODO: update table information
-        # system.table = table_from_file("output.csv", x=self._x)
+        system.m.point_data["m"] = magnetization.copy()
+        system.table = table
 
     def schedule_kwargs_setup(self, schedule_kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments for a scheduled run.
