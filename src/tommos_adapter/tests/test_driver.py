@@ -72,7 +72,7 @@ def test_check_direction(h_direction, expected):
     "h_direction, expected_error, error_message",
     [
         ("string", RuntimeError, "Conversion of direction `h_direction` to NumPy array failed"),
-        ((-1, 0), RuntimeError, "must be convertible to a one-dimensional array containing three numerical values"),
+        ((-1, 0), RuntimeError, "must be a one-dimensional array containing three numerical values"),
         ((np.nan, 0, 0), ValueError, "must contain only finite values"),
         ((0, 0, -np.inf), ValueError, "must contain only finite values"),
         (

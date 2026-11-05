@@ -307,7 +307,7 @@ def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
 
     Raises:
         RuntimeError: Given direction is not convertible to a numeric NumPy array.
-        RuntimeError: Given direction is not convertible to a one-dimensional array of three numerical values.
+        RuntimeError: Given direction is not a one-dimensional array of three numerical values.
         ValueError: Given direction contains infinite values.
         ValueError: Given direction has zero magnitude.
     """
@@ -317,7 +317,7 @@ def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
         raise RuntimeError(f"Conversion of direction `h_direction` to NumPy array failed. {h_direction=}") from exc
     if h.shape != (3,):
         raise RuntimeError(
-            f"Direction `h_direction` must be convertible to a one-dimensional array containing three "
+            f"Direction `h_direction` must be a one-dimensional array containing three "
             f"numerical values. {h_direction=}."
         )
     if not np.all(np.isfinite(h)):
