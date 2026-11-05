@@ -197,8 +197,6 @@ def test_call_passes_progress_information():
     ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
 
     argstr = "test_progress"
-    if sys.platform == "darwin":
-        argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
 
     runner.call.assert_called_once_with(
         argstr=argstr,

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import numbers
 import re
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -72,8 +71,6 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
         argstr = f"{system.name}"
-        if sys.platform == "darwin":
-            argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
