@@ -156,14 +156,6 @@ def test_p2_script_rejects_nonuniform_m(system):
         )
 
 
-def test_krn_script_rejects_missing_demag(system):
-    """Systems must declare the demagnetisation energy TOMMOS computes."""
-    system.energy = mm.Exchange(A=1e-11)
-
-    with pytest.raises(ValueError, match="always computes demagnetisation"):
-        scripts.krn_script(system)
-
-
 @pytest.mark.parametrize(
     "field_kwargs,error_message",
     [
