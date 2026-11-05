@@ -171,7 +171,7 @@ def krn_data(
     grid = _grid(system)
     source_ids, regions = _regions(grid, region_key=region_key)
     region_names = [region.name for region in regions]
-    terms = _energy_terms(system)
+    terms = {type(term): term for term in system.energy}
 
     exchange = terms.get(mm.Exchange)
     if exchange is None:
@@ -235,12 +235,12 @@ def krn_script(
 def p2_script(
     system: mm.System,
     *,
-    hx: Real,
-    hy: Real,
-    hz: Real,
-    hstart: Real,
-    hfinal: Real,
-    hstep: Real,
+    hx: Real = 0.0,
+    hy: Real = 0.0,
+    hz: Real = 1.0,
+    hstart: Real = 0.0,
+    hfinal: Real = 0.0,
+    hstep: Real = 0.05,
     mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
     mstep: float | None = None,
@@ -284,14 +284,11 @@ def p2_script(
     if method != "" and (not isinstance(method, str) or method not in ["pcohen_hs", "tr"]):
         raise ValueError(f"method must be a string between 'pcohen_hs' and 'tr', got {method!r}.")
 
-    _energy_terms(system)
     direction = _field_direction(hx, hy, hz)
     field_values = {"hstart": hstart, "hfinal": hfinal, "hstep": hstep}
     for name, value in field_values.items():
         if not isinstance(value, Real) or not np.isfinite(value):
             raise ValueError(f"{name} must be a finite number, got {value!r}.")
-    if hstep == 0:
-        raise ValueError("hstep must be non-zero.")
 
     magnetisation = initial_magnetisation(system)
     if needs_initial_state_file(system):
@@ -423,22 +420,6 @@ def _as_string(value: object) -> str:
     if isinstance(value, bytes):
         return value.decode()
     return str(value)
-
-
-def _energy_terms(system: mm.System) -> dict[type, object]:
-    supported = (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag)
-    result = {}
-    for term in system.energy:
-        if not isinstance(term, supported):
-            raise ValueError(f"Energy term {term!r} is not supported by TOMMOS.")
-        term_type = type(term)
-        if term_type in result:
-            raise ValueError(f"Only one {term_type.__name__} term is supported by TOMMOS.")
-        result[term_type] = term
-
-    if mm.Demag not in result:
-        raise ValueError("TOMMOS currently always computes demagnetisation; system.energy must contain Demag().")
-    return result
 
 
 def _scalar_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:

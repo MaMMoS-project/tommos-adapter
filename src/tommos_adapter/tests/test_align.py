@@ -7,15 +7,22 @@ import pytest
 import tommos_adapter as ta
 
 
-@pytest.mark.parametrize("sign", [+1, -1])
-def test_align_external_field(state_zero, tmp_path, sign):
+@pytest.mark.parametrize("theta_deg, phi_deg", [(0, 0), (45, 45), (135, 135)])
+def test_align_external_field(monkeypatch, state_zero, tmp_path, theta_deg, phi_deg):
     """Test alignment with external field."""
+    monkeypatch.chdir(tmp_path)
     # Intrinsic properties
     Js = 1.76
     A = 1e-12
-    K = 4e5
-    u_theta = 0
-    u_phi = 0
+    K = 0
+    h_theta = np.deg2rad(theta_deg)
+    h_phi = np.deg2rad(phi_deg)
+    h_direction = (
+        np.sin(h_theta) * np.cos(h_phi),
+        np.sin(h_theta) * np.sin(h_phi),
+        np.cos(h_theta),
+    )
+    h_field = np.array(h_direction) / mm.consts.mu0
 
     # Read mesh and define magnetization
     state = state_zero.copy()
@@ -27,21 +34,51 @@ def test_align_external_field(state_zero, tmp_path, sign):
     system.m = state
 
     # Define energies
-    u = (np.sin(u_theta) * np.cos(u_phi), np.sin(u_theta) * np.sin(u_phi), np.cos(u_theta))
-    system.energy = mm.Exchange(A=A) + mm.UniaxialAnisotropy(K=K, u=u) + mm.Demag()
+    system.energy = mm.Exchange(A=A) + mm.UniaxialAnisotropy(K=K, u=(0, 0, 1)) + mm.Zeeman(H=h_field) + mm.Demag()
 
     # Drive system
-    hd = ta.HysteresisDriver()
-    hd.drive(
-        system,
-        dirname=tmp_path,
-        h_direction=(1, 0, 0),
-        h_start=-sign / mm.consts.mu0,
-        h_final=sign / mm.consts.mu0,
-        n=5,
-    )
+    md = ta.MinDriver()
+    md.drive(system)
 
     # Read final magnetization
     mag_array = system.m.get_array("m")
     average_magnetization = np.mean(mag_array, axis=0)
-    np.testing.assert_allclose(average_magnetization[0], sign)
+    assert np.isclose(np.vdot(average_magnetization, h_direction), 1, atol=1e-3)
+
+
+@pytest.mark.parametrize("theta_deg, phi_deg", [(0, 0), (45, 45), (135, 135)])
+def test_align_anisotropy_axis(monkeypatch, state_zero, tmp_path, theta_deg, phi_deg):
+    """Test alignment with anisotropy axis."""
+    monkeypatch.chdir(tmp_path)
+    # Intrinsic properties
+    Js = 1.76
+    A = 1e-12
+    K = 4e5
+    u_theta = np.deg2rad(theta_deg)
+    u_phi = np.deg2rad(phi_deg)
+    u_direction = (
+        np.sin(u_theta) * np.cos(u_phi),
+        np.sin(u_theta) * np.sin(u_phi),
+        np.cos(u_theta),
+    )
+
+    # Read mesh and define magnetization
+    state = state_zero.copy()
+    state.point_data["m"][:, [1, 2]] = 1 / np.sqrt(2)
+    state.cell_data["Ms"] *= Js
+
+    # Define micromagnetic system
+    system = mm.System(name="test_relaxation")
+    system.m = state
+
+    # Define energies
+    system.energy = mm.Exchange(A=A) + mm.UniaxialAnisotropy(K=K, u=u_direction) + mm.Demag()
+
+    # Drive system
+    md = ta.MinDriver()
+    md.drive(system)
+
+    # Read final magnetization
+    mag_array = system.m.get_array("m")
+    average_magnetization = np.mean(mag_array, axis=0)
+    assert any(np.isclose(np.vdot(average_magnetization, u_direction), (1, -1), atol=1e-3))
