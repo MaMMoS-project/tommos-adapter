@@ -51,8 +51,9 @@ def tommos_table_file(tmp_path_factory):
         dirname=output_directory,
         append=False,
         verbose=0,
-        Hmin=(0.5 / mm.consts.mu0, 0, 0),
-        Hmax=(1 / mm.consts.mu0, 0, 0),
+        h_direction=(0, 0, 1),
+        h_start=0.5,
+        h_final=1,
         n=2,
     )
     return output_directory / system.name / "drive-0" / f"hyst_{system.name}" / "mammos_hysteresis.csv"
