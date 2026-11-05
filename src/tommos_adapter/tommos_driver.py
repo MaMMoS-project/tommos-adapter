@@ -62,11 +62,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, **kwargs: Any) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            **kwargs: Optional keyword arguments passed to the runner call.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
@@ -74,6 +75,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         argstr = f"{system.name}"
         if sys.platform == "darwin":
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        if kwargs.get("full_loop"):
+            argstr += " --loop"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
@@ -127,27 +130,31 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = TommosRunner()
         runner.call(
-            argstr=self.get_argstr(system),
+            argstr=self.get_argstr(system, **kwargs),
             verbose=verbose,
             total=kwargs.get("n"),
             glob_name=f"hyst_{system.name}/*.vtu",
         )
 
     def _schedule_commands(
-        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+        self,
+        system: micromagneticmodel.System,
+        runner: tommos_adapter.tommos_runner.TommosRunner,
+        **kwargs: Any,
     ) -> list[str]:
         """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
+            **kwargs: Optional keyword arguments passed to the scheduler call.
 
         Returns:
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
+        return [runner._call(argstr=self.get_argstr(system, **kwargs), dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
