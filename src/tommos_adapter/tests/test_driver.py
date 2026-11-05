@@ -11,11 +11,32 @@ import tommos_adapter as ta
 
 
 def test_allowed_attributes():
-    assert ta.HysteresisDriver()._allowed_attributes == ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
-    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    assert dict(driver) == {"mstep": 1, "method": "tr", "max_iter": 1000, "tol_fun": 1e-8, "eps_a": "auto"}
+    assert ta.HysteresisDriver()._allowed_attributes == [
+        "mstep",
+        "method",
+        "max_iter",
+        "tol_fun",
+        "eps_a",
+        "num_devices",
+    ]
+    driver = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto", num_devices=2)
+    assert dict(driver) == {
+        "mstep": 1,
+        "method": "tr",
+        "max_iter": 1000,
+        "tol_fun": 1e-8,
+        "eps_a": "auto",
+        "num_devices": 2,
+    }
     with pytest.raises(AttributeError, match="Invalid attribute key"):
         ta.HysteresisDriver(unexpected_argument=1)
+
+
+def test_num_devices():
+    system = mm.System(name="num_devices")
+    with pytest.raises(ValueError, match=r"`num\_devices` should be a non-negative integer"):
+        ta.HysteresisDriver().get_argstr(system, num_devices="mistake")
+    assert ta.HysteresisDriver().get_argstr(system, num_devices=11) == "num_devices --num-devices 11"
 
 
 @pytest.mark.parametrize(
@@ -197,8 +218,6 @@ def test_call_passes_progress_information():
     ta.HysteresisDriver()._call(system, runner, verbose=2, n=7)
 
     argstr = "test_progress"
-    if sys.platform == "darwin":
-        argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
 
     runner.call.assert_called_once_with(
         argstr=argstr,
