@@ -27,6 +27,38 @@ if TYPE_CHECKING:
     import tommos_adapter
 
 
+def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
+    """Return the output magnetization at the points of ``system.m``.
+
+    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
+    coordinates of the original ones. Delete this function once tommos writes its output
+    without the airbox.
+    """
+    if not isinstance(output_state, pv.UnstructuredGrid):
+        raise RuntimeError("tommos output is not an UnstructuredGrid.")
+    if "m" not in output_state.point_data:
+        raise RuntimeError("tommos output does not contain point data 'm'.")
+
+    magnetization = np.asarray(output_state.point_data["m"])
+    expected_shape = (output_state.n_points, 3)
+    if magnetization.shape != expected_shape:
+        raise RuntimeError(f"tommos output magnetization has shape {magnetization.shape}; expected {expected_shape}.")
+    if not np.all(np.isfinite(magnetization)):
+        raise RuntimeError("tommos output magnetization contains non-finite values.")
+
+    knt = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+    output_points = np.asarray(output_state.points)
+    # tommos writes float32 coordinates, so the input points are rounded the same way.
+    _, key = np.unique(np.vstack([knt.astype(output_points.dtype), output_points]), axis=0, return_inverse=True)
+    key = key.ravel()
+    output_index = np.full(key.max() + 1, -1)
+    output_index[key[len(knt) :]] = np.arange(len(output_points))
+    point_map = output_index[key[: len(knt)]]
+    if np.any(point_map < 0) or len(np.unique(point_map)) != len(knt):
+        raise RuntimeError("Mesh in tommos output does not match system.m.")
+    return magnetization[point_map]
+
+
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
@@ -71,7 +103,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
-        argstr = f"{system.name}"
+        argstr = f"{system.name} --add-shell"
         if sys.platform == "darwin":
             argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
         return argstr
@@ -172,35 +204,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             output_state = pv.read(last_output_file)
         except Exception as error:
             raise RuntimeError(f"Cannot read TOMMOS output '{last_output_file}'.") from error
-
-        if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' is not an UnstructuredGrid.")
-        if "m" not in output_state.point_data:
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' does not contain point data 'm'.")
-
-        magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (system.m.n_points, 3)
-        if magnetization.shape != expected_shape:
-            raise RuntimeError(
-                f"TOMMOS output magnetization has shape {magnetization.shape}; expected {expected_shape}."
-            )
-        if not np.all(np.isfinite(magnetization)):
-            raise RuntimeError("TOMMOS output magnetization contains non-finite values.")
-
-        matching_mesh = (
-            output_state.n_points == system.m.n_points
-            and output_state.n_cells == system.m.n_cells
-            and np.allclose(
-                output_state.points * scripts.DEFAULT_MESH_UNIT,
-                system.m.points,
-                rtol=1e-7,
-                atol=scripts.DEFAULT_MESH_UNIT * 1e-5,
-            )
-            and np.array_equal(output_state.celltypes, system.m.celltypes)
-            and np.array_equal(output_state.cell_connectivity, system.m.cell_connectivity)
-        )
-        if not matching_mesh:
-            raise RuntimeError(f"Mesh in TOMMOS output '{last_output_file}' does not match system.m.")
+        magnetization = _magnetization_without_airbox(system, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:
