@@ -264,7 +264,7 @@ def test_read_data_requires_table(state_zero, tmp_path, monkeypatch):
     _write_tommos_output(state, output_directory / "state_cfg00000_B+0.0000e+00T.vtu", (0, 1, 0))
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(RuntimeError, match="Cannot read TOMMOS table"):
+    with pytest.raises(RuntimeError, match="Cannot read tommos table"):
         ta.HysteresisDriver()._read_data(system)
 
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
@@ -307,7 +307,7 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
     magnetization_before_read = state.point_data["m"].copy()
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(RuntimeError, match="No TOMMOS VTU output found"):
+    with pytest.raises(RuntimeError, match="No tommos VTU output found"):
         ta.HysteresisDriver()._read_data(system)
 
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
