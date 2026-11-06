@@ -1,4 +1,4 @@
-"""Read TOMMOS tabular output."""
+"""Read tommos tabular output."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ import os
 import mammos_entity as me
 import ubermagtable as ut
 
-_COLUMN_RENAMES = {"B_ext_T": "B_hysteresis"}
+_COLUMN_RENAMES = {
+    "B_ext_T": "B_hysteresis",
+    "J_par_T": "J_par",
+}
 
 
 def table_from_file(
@@ -18,16 +21,15 @@ def table_from_file(
 ) -> ut.Table:
     """Read a MaMMoS CSV file as an Ubermag table.
 
-    TOMMOS currently writes ``config`` (dimensionless), ``B_ext_T`` (T),
-    ``J_par_T`` (T), ``E`` (J/m3), and ``gnorm`` (J/m3). Units are taken from
-    the file metadata rather than hard-coded, and additional columns are
-    preserved. With ``rename=True``, ``B_ext_T`` becomes ``B_hysteresis`` to
-    follow the Ubermag hysteresis convention.
+    See the
+    `tommos output documentation <https://github.com/MaMMoS-project/tommos#5-output>`_
+    for details on the tabular output. With ``rename=True``, known tommos column
+    names are converted to shorter names.
 
     Args:
-        filename: MaMMoS CSV file produced by TOMMOS.
+        filename: MaMMoS CSV file produced by tommos.
         x: Independent-variable column name.
-        rename: Whether to apply known Ubermag column names.
+        rename: Whether to apply shorter names to known tommos columns.
 
     Returns:
         Table containing all CSV columns, units, and MaMMoS metadata.

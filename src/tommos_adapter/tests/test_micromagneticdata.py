@@ -1,4 +1,4 @@
-"""Test the micromagneticdata plugins without running TOMMOS."""
+"""Test the micromagneticdata plugins without running tommos."""
 
 import json
 
@@ -78,7 +78,7 @@ def _write_drive(dirname) -> None:
 
 @pytest.fixture
 def drive(tmp_path):
-    """Return a synthetic TOMMOS drive discovered through its entry point."""
+    """Return a synthetic tommos drive discovered through its entry point."""
     _write_drive(tmp_path)
     return mdata.Data(name=_SYSTEM_NAME, dirname=tmp_path)[0]
 
@@ -86,11 +86,17 @@ def drive(tmp_path):
 @pytest.fixture
 def drive_with_reference(drive):
     """Return the shared micromagneticdata test references."""
-    return drive, ("B_hysteresis", "J_par_T", "hstart = -1")
+    return drive, ("B_hysteresis", "J_par", "hstart = -1")
+
+
+@pytest.fixture
+def expected_field_type():
+    """Return the magnetisation type provided by the tommos plugin."""
+    return pv.UnstructuredGrid
 
 
 def test_plugin_returns_complete_unstructured_grids(drive):
-    """Restore SI coordinates and initial-grid metadata around TOMMOS output."""
+    """Restore SI coordinates and initial-grid metadata around tommos output."""
     assert isinstance(drive, TommosDrive)
     assert isinstance(drive.m0, pv.UnstructuredGrid)
     np.testing.assert_allclose(drive.m0.points, _initial_state().points)
@@ -106,7 +112,7 @@ def test_plugin_returns_complete_unstructured_grids(drive):
 
 def test_table_plugin_preserves_metadata(drive):
     """Expose MaMMoS CSV data using Ubermag hysteresis conventions."""
-    assert list(drive.table.data.columns) == ["config", "B_hysteresis", "J_par_T", "E", "gnorm", "future_column"]
+    assert list(drive.table.data.columns) == ["config", "B_hysteresis", "J_par", "E", "gnorm", "future_column"]
     assert drive.table.units["B_hysteresis"] == "T"
     assert drive.table.units["E"] == "J / m3"
     assert drive.table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"

@@ -1,8 +1,9 @@
-"""Read TOMMOS drives with micromagneticdata."""
+"""Read tommos drives with micromagneticdata."""
 
 from __future__ import annotations
 
 import os
+import pathlib
 
 import micromagneticdata as mdata
 import numpy as np
@@ -12,9 +13,14 @@ from tommos_adapter import scripts
 
 
 class TommosDrive(mdata.Drive):
-    """TOMMOS-specific drive returning PyVista unstructured grids."""
+    """tommos-specific drive returning PyVista unstructured grids."""
 
-    @mdata.AbstractDrive.x.setter
+    @property
+    def x(self) -> str:
+        """Independent variable name."""
+        return self._x
+
+    @x.setter
     def x(self, value: str | None) -> None:
         """Set the independent table variable.
 
@@ -51,20 +57,19 @@ class TommosDrive(mdata.Drive):
 
     @property
     def calculator_script(self) -> str:
-        """Return the TOMMOS P2 configuration."""
+        """Return the tommos P2 configuration."""
         return (self.drive_path / f"{self.name}.p2").read_text(encoding="utf-8")
 
-    def _read_state(self, filename: str | os.PathLike, *, initial: bool = False) -> pv.UnstructuredGrid:
+    def _read_m(self, filename: str | os.PathLike) -> pv.UnstructuredGrid:
         """Read a complete state in SI coordinates.
 
-        TOMMOS snapshots store calculator-scaled coordinates and do not retain
+        tommos snapshots store calculator-scaled coordinates and do not retain
         all metadata from the user grid. For snapshots, the initial state is
         therefore used as a reference and only the computed magnetisation is
-        copied from the TOMMOS output.
+        copied from the tommos output.
 
         Args:
             filename: VTU state file.
-            initial: Whether the file is the initial state.
 
         Returns:
             Complete unstructured grid in SI units.
@@ -75,12 +80,12 @@ class TommosDrive(mdata.Drive):
         """
         state = _read_unstructured_grid(filename)
         _validate_magnetisation(state, filename)
-        if initial:
+        if pathlib.Path(filename) == self._m0_path:
             return state
 
         initial_state = _read_unstructured_grid(self._m0_path)
         if not _matching_mesh(initial_state, state):
-            raise RuntimeError(f"Mesh in TOMMOS output '{filename}' does not match m0.vtu.")
+            raise RuntimeError(f"Mesh in tommos output '{filename}' does not match m0.vtu.")
 
         result = initial_state.copy(deep=True)
         result.point_data["m"] = np.asarray(state.point_data["m"]).copy()
@@ -91,22 +96,22 @@ def _read_unstructured_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
     try:
         state = pv.read(filename)
     except Exception as error:
-        raise RuntimeError(f"Cannot read TOMMOS state '{filename}'.") from error
+        raise RuntimeError(f"Cannot read tommos state '{filename}'.") from error
     if not isinstance(state, pv.UnstructuredGrid):
-        raise RuntimeError(f"TOMMOS state '{filename}' is not an UnstructuredGrid.")
+        raise RuntimeError(f"tommos state '{filename}' is not an UnstructuredGrid.")
     return state
 
 
 def _validate_magnetisation(state: pv.UnstructuredGrid, filename: str | os.PathLike) -> None:
     if "m" not in state.point_data:
-        raise RuntimeError(f"TOMMOS state '{filename}' does not contain point data 'm'.")
+        raise RuntimeError(f"tommos state '{filename}' does not contain point data 'm'.")
     magnetisation = np.asarray(state.point_data["m"])
     if magnetisation.shape != (state.n_points, 3):
         raise RuntimeError(
-            f"TOMMOS state '{filename}' has magnetisation shape {magnetisation.shape}; expected {(state.n_points, 3)}."
+            f"tommos state '{filename}' has magnetisation shape {magnetisation.shape}; expected {(state.n_points, 3)}."
         )
     if not np.all(np.isfinite(magnetisation)):
-        raise RuntimeError(f"TOMMOS state '{filename}' contains non-finite magnetisation values.")
+        raise RuntimeError(f"tommos state '{filename}' contains non-finite magnetisation values.")
 
 
 def _matching_mesh(reference: pv.UnstructuredGrid, state: pv.UnstructuredGrid) -> bool:
