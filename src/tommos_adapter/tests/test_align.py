@@ -41,7 +41,6 @@ def test_align_external_field(state_zero, tmp_path, sign):
         n=5,
     )
 
-    # Check orientation of normalized average magnetization
+    # Check the averaged magnetization directly so that reduced alignment is visible.
     avg_magnetization = np.mean(system.m.point_data["m"], axis=0)
-    normalized_avg_magnetization = avg_magnetization / np.linalg.norm(avg_magnetization)
-    np.testing.assert_allclose(normalized_avg_magnetization[0], sign, rtol=1e-3)
+    assert sign * avg_magnetization[0] > 0.9

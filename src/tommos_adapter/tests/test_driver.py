@@ -257,6 +257,7 @@ def test_read_data_requires_table(state_zero, tmp_path, monkeypatch):
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     system = mm.System(name="missing_table", m=state)
+    magnetization_before_read = state.point_data["m"].copy()
 
     output_directory = tmp_path / "hyst_missing_table"
     output_directory.mkdir()
@@ -265,6 +266,8 @@ def test_read_data_requires_table(state_zero, tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="Cannot read TOMMOS table"):
         ta.HysteresisDriver()._read_data(system)
+
+    np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
 def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_table):
@@ -310,7 +313,6 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
-@pytest.mark.xfail
 @pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
 def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, invalid_output):
     """Invalid TOMMOS snapshots do not partially update the system."""
