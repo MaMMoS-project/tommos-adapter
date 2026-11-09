@@ -1,4 +1,4 @@
-"""Test the micromagneticdata plugins without running tommos."""
+"""Test the micromagneticdata plugins with synthetic and simulated results."""
 
 import json
 
@@ -99,6 +99,35 @@ def drive_with_reference(drive):
 def expected_field_type():
     """Return the magnetisation type provided by the tommos plugin."""
     return pv.UnstructuredGrid
+
+
+def test_plugin_reads_simulation_results(tommos_simulation):
+    """Read actual calculator output through the registered data plugin."""
+    system, output_directory = tommos_simulation
+    drive = mdata.Data(name=system.name, dirname=output_directory)[0]
+    assert isinstance(drive, TommosDrive)
+
+    initial_grid = drive.m0
+    np.testing.assert_array_equal(initial_grid.point_data["m"], np.tile((1, 0, 0), (system.m.n_points, 1)))
+    output_grids = list(drive)
+    assert len(output_grids) == 2
+    for grid in [initial_grid, *output_grids]:
+        assert isinstance(grid, pv.UnstructuredGrid)
+        np.testing.assert_array_equal(grid.points, system.m.points)
+        np.testing.assert_array_equal(grid.cells, system.m.cells)
+        for name in ("region_id", "Ms"):
+            np.testing.assert_array_equal(grid.cell_data[name], system.m.cell_data[name])
+        assert grid.point_data["m"].shape == (system.m.n_points, 3)
+        assert np.all(np.isfinite(grid.point_data["m"]))
+    np.testing.assert_array_equal(output_grids[-1].point_data["m"], system.m.point_data["m"])
+
+    table = drive.table
+    assert drive.n == len(table.data) == 2
+    assert table.data.equals(system.table.data)
+    assert table.units == system.table.units
+    assert table.units["B_hysteresis"] == "T"
+    assert table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
+    assert "[initial state]" in drive.calculator_script
 
 
 def test_plugin_returns_complete_unstructured_grids(drive):
