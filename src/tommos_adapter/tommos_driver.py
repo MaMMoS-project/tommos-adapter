@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import numbers
 import re
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -60,20 +59,23 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, **kwargs: Any) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            **kwargs: Optional keyword arguments passed to the runner call.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
         argstr = f"{system.name}"
-        if sys.platform == "darwin":
-            argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        if nd := kwargs.get("num_devices"):
+            if not isinstance(nd, int) or nd < 0:
+                raise ValueError(f"Parameter `num_devices` should be a non-negative integer. Got: {nd}")
+            argstr += f" --num-devices {nd}"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
