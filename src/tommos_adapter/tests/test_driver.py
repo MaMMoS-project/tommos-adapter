@@ -40,6 +40,17 @@ def test_num_devices():
     assert ta.HysteresisDriver().get_argstr(system, num_devices=11) == "num_devices --add-shell --num-devices 11"
 
 
+@pytest.mark.parametrize("name, full_loop", [["name_1", None], ["name_2", True], ["name_3", False]])
+def test_get_argstr(name, full_loop):
+    """Test string of arguments passed to the runner or to the scheduler in `HysteresisDriver`."""
+    system = mm.System(name=name)
+    hd = ta.HysteresisDriver()
+    expected_argstr = f"{name} --add-shell"
+    if full_loop:
+        expected_argstr += " --loop"
+    assert hd.get_argstr(system, full_loop=full_loop) == expected_argstr
+
+
 @pytest.mark.parametrize(
     "h_direction,h_start,h_final,n,hx,hy,hz,hstart,hfinal,hstep",
     [
@@ -466,6 +477,31 @@ def test_check_system_does_not_modify_valid_system(state_zero):
     ta.HysteresisDriver()._check_system(system)
 
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_check)
+
+
+def test_full_loop(tiny_mesh, tmp_path):
+    system = mm.System("test_full_loop")
+    system.m = tiny_mesh.copy()
+    system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(0, 0, 1)) + mm.Demag()
+    h_start_T = 3
+    h_final_T = -2
+    n = 7
+    ta.HysteresisDriver().drive(
+        system,
+        dirname=tmp_path,
+        h_direction=(1, 0, 0),
+        h_start=h_start_T / mm.consts.mu0,
+        h_final=h_final_T / mm.consts.mu0,
+        n=n,
+        full_loop=True,
+    )
+    expected_B_hysteresis = np.concatenate(
+        (
+            np.linspace(h_start_T, h_final_T, num=n - 1, endpoint=False),
+            np.linspace(h_final_T, h_start_T, num=n, endpoint=True),
+        )
+    )
+    np.testing.assert_allclose(system.table.data.B_hysteresis, expected_B_hysteresis)
 
 
 def test_x():
