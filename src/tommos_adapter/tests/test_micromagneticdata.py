@@ -124,6 +124,15 @@ def test_table_plugin_preserves_metadata(drive):
     assert drive.table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
 
 
+def test_missing_initial_grid_reports_filename(drive):
+    """Include the filename and original read error when the initial grid is missing."""
+    drive._m0_path.unlink()
+    with pytest.raises(RuntimeError, match="Cannot read tommos magnetisation grid") as error:
+        _ = drive.m0
+    assert str(drive._m0_path) in str(error.value)
+    assert isinstance(error.value.__cause__, FileNotFoundError)
+
+
 @pytest.fixture
 def sparse_drive(drive):
     """Include a field step without a new snapshot, as produced with ``mstep``."""

@@ -7,10 +7,9 @@ import os
 import pathlib
 
 import micromagneticdata as mdata
-import numpy as np
 import pyvista as pv
 
-from tommos_adapter._mesh import _magnetization_without_airbox
+from tommos_adapter._mesh import _magnetization_without_airbox, _read_magnetisation_grid
 from tommos_adapter.plugins.read_table import table_from_file
 
 
@@ -77,33 +76,10 @@ class TommosDrive(mdata.Drive):
             RuntimeError: If the VTU data is missing, invalid, or incompatible
                 with the initial grid.
         """
-        state = _read_unstructured_grid(filename)
-        _validate_magnetisation(state, filename)
+        output_grid = _read_magnetisation_grid(filename)
         if pathlib.Path(filename) == self._m0_path:
-            return state
+            return output_grid
 
-        initial_state = _read_unstructured_grid(self._m0_path)
-        initial_state.point_data["m"] = _magnetization_without_airbox(initial_state, state)
-        return initial_state
-
-
-def _read_unstructured_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
-    try:
-        state = pv.read(filename)
-    except Exception as error:
-        raise RuntimeError(f"Cannot read tommos state '{filename}'.") from error
-    if not isinstance(state, pv.UnstructuredGrid):
-        raise RuntimeError(f"tommos state '{filename}' is not an UnstructuredGrid.")
-    return state
-
-
-def _validate_magnetisation(state: pv.UnstructuredGrid, filename: str | os.PathLike) -> None:
-    if "m" not in state.point_data:
-        raise RuntimeError(f"tommos state '{filename}' does not contain point data 'm'.")
-    magnetisation = np.asarray(state.point_data["m"])
-    if magnetisation.shape != (state.n_points, 3):
-        raise RuntimeError(
-            f"tommos state '{filename}' has magnetisation shape {magnetisation.shape}; expected {(state.n_points, 3)}."
-        )
-    if not np.all(np.isfinite(magnetisation)):
-        raise RuntimeError(f"tommos state '{filename}' contains non-finite magnetisation values.")
+        reference_grid = _read_magnetisation_grid(self._m0_path)
+        reference_grid.point_data["m"] = _magnetization_without_airbox(reference_grid, output_grid)
+        return reference_grid

@@ -1,9 +1,46 @@
-"""Internal helpers for mapping tommos output meshes."""
+"""Internal helpers for reading and mapping tommos magnetisation grids."""
+
+import os
 
 import numpy as np
 import pyvista as pv
 
 from tommos_adapter.scripts import DEFAULT_MESH_UNIT
+
+
+def _read_magnetisation_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
+    """Read a tommos VTU grid and validate its point magnetisation.
+
+    Args:
+        filename: VTU file containing the magnetisation grid.
+
+    Returns:
+        Unstructured grid with finite, three-component point data ``m``.
+
+    Raises:
+        RuntimeError: If the file cannot be read, is not an unstructured grid,
+            or contains missing, incorrectly shaped, or non-finite magnetisation.
+    """
+    try:
+        grid = pv.read(filename)
+    except Exception as error:
+        raise RuntimeError(f"Cannot read tommos magnetisation grid '{filename}'.") from error
+
+    if not isinstance(grid, pv.UnstructuredGrid):
+        raise RuntimeError(f"tommos magnetisation grid '{filename}' is not an UnstructuredGrid.")
+    if "m" not in grid.point_data:
+        raise RuntimeError(f"tommos magnetisation grid '{filename}' does not contain point data 'm'.")
+
+    magnetisation = np.asarray(grid.point_data["m"])
+    expected_shape = (grid.n_points, 3)
+    if magnetisation.shape != expected_shape:
+        raise RuntimeError(
+            f"tommos magnetisation grid '{filename}' has magnetisation shape {magnetisation.shape}; "
+            f"expected {expected_shape}."
+        )
+    if not np.all(np.isfinite(magnetisation)):
+        raise RuntimeError(f"tommos magnetisation grid '{filename}' contains non-finite magnetisation values.")
+    return grid
 
 
 def _magnetization_without_airbox(reference: pv.UnstructuredGrid, output_state: pv.UnstructuredGrid) -> np.ndarray:

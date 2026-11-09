@@ -336,7 +336,7 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
-@pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
+@pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "non_finite_m", "different_mesh"])
 def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, invalid_output):
     """Invalid TOMMOS snapshots do not partially update the system."""
     state = state_zero.copy()
@@ -351,19 +351,25 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         error_message = "does not contain point data 'm'"
     elif invalid_output == "wrong_shape":
         output_state.point_data["m"] = np.ones((state.n_points, 2))
-        error_message = "output magnetization has shape"
+        error_message = "has magnetisation shape"
+    elif invalid_output == "non_finite_m":
+        output_state.point_data["m"][0, 0] = np.nan
+        error_message = "contains non-finite magnetisation values"
     else:
         output_state.points[0, 0] += 1
         error_message = "does not match the reference mesh"
 
     output_directory = tmp_path / "hyst_invalid_output"
     output_directory.mkdir()
-    output_state.save(output_directory / "state_cfg00000_B+0.0000e+00T.vtu")
+    output_file = output_directory / "state_cfg00000_B+0.0000e+00T.vtu"
+    output_state.save(output_file)
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(RuntimeError, match=error_message):
+    with pytest.raises(RuntimeError, match=error_message) as error:
         ta.HysteresisDriver()._read_data(system)
 
+    if invalid_output != "different_mesh":
+        assert str(output_file.relative_to(tmp_path)) in str(error.value)
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
