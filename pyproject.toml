@@ -106,6 +106,9 @@ test-notebooks = {cmd="pytest -vv --nbval-lax examples -k 'not hard-magnet-tutor
 test-all = {depends-on=["test-unittest", "test-docstrings", "test-notebooks"], description="Run all tests."}
 style = "pre-commit run --all-files"
 
+[tool.pixi.target.osx.activation.env]
+OPENBLAS_NUM_THREADS = "1"
+
 [tool.towncrier]
 directory = "changes"
 filename = "CHANGELOG.md"

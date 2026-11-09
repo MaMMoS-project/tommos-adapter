@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import numbers
 import re
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -17,6 +16,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
+from tommos_adapter._mesh import _magnetization_without_airbox
 from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
@@ -60,20 +60,23 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, **kwargs: Any) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            **kwargs: Optional keyword arguments passed to the runner call.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
-        argstr = f"{system.name}"
-        if sys.platform == "darwin":
-            argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        argstr = f"{system.name} --add-shell"
+        if nd := kwargs.get("num_devices"):
+            if not isinstance(nd, int) or nd < 0:
+                raise ValueError(f"Parameter `num_devices` should be a non-negative integer. Got: {nd}")
+            argstr += f" --num-devices {nd}"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
@@ -166,48 +169,35 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 indexed_output_files.append((int(match.group(1)), output_file))
 
         if not indexed_output_files:
-            raise RuntimeError(f"No TOMMOS VTU output found in '{output_directory}'.")
+            raise RuntimeError(f"No tommos VTU output found in '{output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
         try:
             output_state = pv.read(last_output_file)
         except Exception as error:
-            raise RuntimeError(f"Cannot read TOMMOS output '{last_output_file}'.") from error
+            raise RuntimeError(f"Cannot read tommos output '{last_output_file}'.") from error
 
         if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' is not an UnstructuredGrid.")
+            raise RuntimeError(f"tommos output '{last_output_file}' is not an UnstructuredGrid.")
         if "m" not in output_state.point_data:
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' does not contain point data 'm'.")
+            raise RuntimeError(f"tommos output '{last_output_file}' does not contain point data 'm'.")
 
-        magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (system.m.n_points, 3)
-        if magnetization.shape != expected_shape:
+        output_magnetization = np.asarray(output_state.point_data["m"])
+        expected_shape = (output_state.n_points, 3)
+        if output_magnetization.shape != expected_shape:
             raise RuntimeError(
-                f"TOMMOS output magnetization has shape {magnetization.shape}; expected {expected_shape}."
+                f"tommos output magnetization has shape {output_magnetization.shape}; expected {expected_shape}."
             )
-        if not np.all(np.isfinite(magnetization)):
-            raise RuntimeError("TOMMOS output magnetization contains non-finite values.")
+        if not np.all(np.isfinite(output_magnetization)):
+            raise RuntimeError("tommos output magnetization contains non-finite values.")
 
-        matching_mesh = (
-            output_state.n_points == system.m.n_points
-            and output_state.n_cells == system.m.n_cells
-            and np.allclose(
-                output_state.points * scripts.DEFAULT_MESH_UNIT,
-                system.m.points,
-                rtol=1e-7,
-                atol=scripts.DEFAULT_MESH_UNIT * 1e-5,
-            )
-            and np.array_equal(output_state.celltypes, system.m.celltypes)
-            and np.array_equal(output_state.cell_connectivity, system.m.cell_connectivity)
-        )
-        if not matching_mesh:
-            raise RuntimeError(f"Mesh in TOMMOS output '{last_output_file}' does not match system.m.")
+        magnetization = _magnetization_without_airbox(system.m, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:
             table = table_from_file(table_file, x=self._x)
         except (OSError, RuntimeError, ValueError) as error:
-            raise RuntimeError(f"Cannot read TOMMOS table '{table_file}'.") from error
+            raise RuntimeError(f"Cannot read tommos table '{table_file}'.") from error
 
         system.m.point_data["m"] = magnetization.copy()
         system.table = table

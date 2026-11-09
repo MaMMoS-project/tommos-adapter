@@ -43,12 +43,17 @@ def _initial_state() -> pv.UnstructuredGrid:
 
 
 def _write_snapshot(reference: pv.UnstructuredGrid, filename, magnetisation) -> None:
-    state = reference.copy(deep=True)
-    state.points /= scripts.DEFAULT_MESH_UNIT
-    state.clear_data()
-    state.point_data["m"] = np.tile(magnetisation, (state.n_points, 1))
-    state.point_data["U"] = np.zeros(state.n_points)
-    state.cell_data["mat_id"] = reference.cell_data["region_id"]
+    reference_points = reference.points / scripts.DEFAULT_MESH_UNIT
+    airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
+    points = np.vstack([reference_points, airbox_points]).astype(np.float32)
+    output_m = np.vstack([np.tile(magnetisation, (reference.n_points, 1)), np.zeros((len(airbox_points), 3))]).astype(
+        np.float32
+    )
+    connectivity = np.vstack([reference.cell_connectivity.reshape(-1, 4), np.arange(4) + reference.n_points])
+    order = np.random.default_rng(0).permutation(len(points))
+    new_index = np.argsort(order)
+    state = pv.UnstructuredGrid({pv.CellType.TETRA: new_index[connectivity]}, points[order])
+    state.point_data["m"] = output_m[order]
     state.save(filename)
 
 
@@ -96,7 +101,7 @@ def expected_field_type():
 
 
 def test_plugin_returns_complete_unstructured_grids(drive):
-    """Restore SI coordinates and initial-grid metadata around tommos output."""
+    """Drop the airbox while restoring SI coordinates and initial-grid metadata."""
     assert isinstance(drive, TommosDrive)
     assert isinstance(drive.m0, pv.UnstructuredGrid)
     np.testing.assert_allclose(drive.m0.points, _initial_state().points)

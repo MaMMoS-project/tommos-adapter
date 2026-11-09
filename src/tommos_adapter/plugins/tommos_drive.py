@@ -9,7 +9,7 @@ import micromagneticdata as mdata
 import numpy as np
 import pyvista as pv
 
-from tommos_adapter import scripts
+from tommos_adapter._mesh import _magnetization_without_airbox
 
 
 class TommosDrive(mdata.Drive):
@@ -84,11 +84,8 @@ class TommosDrive(mdata.Drive):
             return state
 
         initial_state = _read_unstructured_grid(self._m0_path)
-        if not _matching_mesh(initial_state, state):
-            raise RuntimeError(f"Mesh in tommos output '{filename}' does not match m0.vtu.")
-
         result = initial_state.copy(deep=True)
-        result.point_data["m"] = np.asarray(state.point_data["m"]).copy()
+        result.point_data["m"] = _magnetization_without_airbox(initial_state, state)
         return result
 
 
@@ -112,18 +109,3 @@ def _validate_magnetisation(state: pv.UnstructuredGrid, filename: str | os.PathL
         )
     if not np.all(np.isfinite(magnetisation)):
         raise RuntimeError(f"tommos state '{filename}' contains non-finite magnetisation values.")
-
-
-def _matching_mesh(reference: pv.UnstructuredGrid, state: pv.UnstructuredGrid) -> bool:
-    return (
-        state.n_points == reference.n_points
-        and state.n_cells == reference.n_cells
-        and np.allclose(
-            state.points * scripts.DEFAULT_MESH_UNIT,
-            reference.points,
-            rtol=1e-7,
-            atol=scripts.DEFAULT_MESH_UNIT * 1e-5,
-        )
-        and np.array_equal(state.celltypes, reference.celltypes)
-        and np.array_equal(state.cell_connectivity, reference.cell_connectivity)
-    )
