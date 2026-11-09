@@ -7,9 +7,9 @@ independently from a driver and from the TOMMOS executable.
 The provisional unstructured-grid contract is:
 
 * ``point_data["m"]`` contains the nodal magnetisation directions.
-* ``cell_data["region_id"]`` contains one region identifier per tetrahedron.
+* ``cell_data["mat_id"]`` contains one material identifier per tetrahedron.
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
-* ``field_data["region_ids"]`` and ``field_data["region_names"]`` optionally
+* ``field_data["mat_ids"]`` and ``field_data["mat_names"]`` optionally
   map numeric region identifiers to names used in parameter dictionaries.
 
 TOMMOS material identifiers are contiguous and one-based.  Source region
@@ -43,7 +43,7 @@ def mesh_data(
     system: mm.System,
     *,
     mesh_unit: float = DEFAULT_MESH_UNIT,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
 ) -> dict[str, np.ndarray]:
     """Return TOMMOS ``knt`` and ``ijk`` arrays for a system.
 
@@ -55,7 +55,7 @@ def mesh_data(
         system: Micromagnetic system with a PyVista unstructured grid as
             magnetisation object.
         mesh_unit: Physical length in metres represented by one mesh unit.
-        region_key: Name of the cell-data array containing region identifiers.
+        mat_key: Name of the cell-data array containing region identifiers.
 
     Returns:
         A dictionary with ``knt`` and ``ijk`` suitable for ``numpy.savez``.
@@ -70,7 +70,7 @@ def mesh_data(
 
     grid = _grid(system)
     connectivity = _tetra_connectivity(grid)
-    source_ids, regions = _regions(grid, region_key=region_key)
+    source_ids, regions = _regions(grid, mat_key=mat_key)
 
     material_ids = np.empty(grid.n_cells, dtype=np.int32)
     for region in regions:
@@ -149,7 +149,7 @@ def needs_initial_state_file(system: mm.System, *, key: str = "m") -> bool:
 def krn_data(
     system: mm.System,
     *,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
     saturation_key: str = "Ms",
 ) -> np.ndarray:
     """Return the TOMMOS material table represented by a ``.krn`` file.
@@ -159,7 +159,7 @@ def krn_data(
 
     Args:
         system: Micromagnetic system to translate.
-        region_key: Name of the cell-data region array.
+        mat_key: Name of the cell-data region array.
         saturation_key: Name of the cell-data saturation-magnetisation array.
 
     Returns:
@@ -169,7 +169,7 @@ def krn_data(
         ValueError: If material parameters cannot be represented by TOMMOS.
     """
     grid = _grid(system)
-    source_ids, regions = _regions(grid, region_key=region_key)
+    source_ids, regions = _regions(grid, mat_key=mat_key)
     region_names = [region.name for region in regions]
     terms = {type(term): term for term in system.energy}
 
@@ -210,14 +210,14 @@ def krn_data(
 def krn_script(
     system: mm.System,
     *,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
     saturation_key: str = "Ms",
 ) -> str:
     """Return the contents of a TOMMOS ``.krn`` material file.
 
     Args:
         system: Micromagnetic system to translate.
-        region_key: Name of the cell-data region array.
+        mat_key: Name of the cell-data region array.
         saturation_key: Name of the cell-data saturation-magnetisation array.
 
     Returns:
@@ -226,7 +226,7 @@ def krn_script(
     output = io.StringIO()
     np.savetxt(
         output,
-        krn_data(system, region_key=region_key, saturation_key=saturation_key),
+        krn_data(system, mat_key=mat_key, saturation_key=saturation_key),
         fmt="%.17g",
     )
     return output.getvalue()
@@ -368,36 +368,36 @@ def _tetra_connectivity(grid: pv.UnstructuredGrid) -> np.ndarray:
     return connectivity
 
 
-def _regions(grid: pv.UnstructuredGrid, *, region_key: str) -> tuple[np.ndarray, list[_Region]]:
-    if region_key not in grid.cell_data:
-        raise ValueError(f"Grid cell_data does not contain {region_key!r}.")
+def _regions(grid: pv.UnstructuredGrid, *, mat_key: str) -> tuple[np.ndarray, list[_Region]]:
+    if mat_key not in grid.cell_data:
+        raise ValueError(f"Grid cell_data does not contain {mat_key!r}.")
 
-    raw_ids = np.asarray(grid.cell_data[region_key])
+    raw_ids = np.asarray(grid.cell_data[mat_key])
     if raw_ids.ndim == 2 and raw_ids.shape[1] == 1:
         raw_ids = raw_ids[:, 0]
     if raw_ids.shape != (grid.n_cells,):
-        raise ValueError(f"cell_data[{region_key!r}] must have shape {(grid.n_cells,)}, got {raw_ids.shape}.")
+        raise ValueError(f"cell_data[{mat_key!r}] must have shape {(grid.n_cells,)}, got {raw_ids.shape}.")
     if not np.issubdtype(raw_ids.dtype, np.integer):
-        raise ValueError(f"cell_data[{region_key!r}] must contain integer identifiers.")
+        raise ValueError(f"cell_data[{mat_key!r}] must contain integer identifiers.")
     source_ids = raw_ids.astype(np.int64, copy=False)
 
     unique_ids = np.unique(source_ids)
 
-    has_region_ids = "region_ids" in grid.field_data
+    has_mat_ids = "mat_ids" in grid.field_data
     has_region_names = "region_names" in grid.field_data
-    if has_region_ids != has_region_names:
-        raise ValueError("field_data must contain both 'region_ids' and 'region_names'.")
-    if has_region_ids:
-        metadata_ids = np.asarray(grid.field_data["region_ids"]).reshape(-1)
+    if has_mat_ids != has_region_names:
+        raise ValueError("field_data must contain both 'mat_ids' and 'region_names'.")
+    if has_mat_ids:
+        metadata_ids = np.asarray(grid.field_data["mat_ids"]).reshape(-1)
         metadata_names = np.asarray(grid.field_data["region_names"]).reshape(-1)
         if metadata_ids.size != metadata_names.size:
-            raise ValueError("field_data['region_ids'] and field_data['region_names'] must have equal lengths.")
+            raise ValueError("field_data['mat_ids'] and field_data['region_names'] must have equal lengths.")
         if not np.issubdtype(metadata_ids.dtype, np.integer):
-            raise ValueError("field_data['region_ids'] must contain integers.")
+            raise ValueError("field_data['mat_ids'] must contain integers.")
 
         metadata_ids = metadata_ids.astype(np.int64, copy=False)
         if np.unique(metadata_ids).size != metadata_ids.size:
-            raise ValueError("field_data['region_ids'] contains duplicate identifiers.")
+            raise ValueError("field_data['mat_ids'] contains duplicate identifiers.")
         names = [_as_string(name) for name in metadata_names]
         if len(set(names)) != len(names):
             raise ValueError("field_data['region_names'] contains duplicate names.")
@@ -409,7 +409,7 @@ def _regions(grid: pv.UnstructuredGrid, *, region_key: str) -> tuple[np.ndarray,
                 f"Region metadata does not match the cell-data identifiers; missing={missing_ids}, extra={extra_ids}."
             )
     else:
-        names_by_id = {int(region_id): f"region_{int(region_id)}" for region_id in unique_ids}
+        names_by_id = {int(mat_id): f"region_{int(mat_id)}" for mat_id in unique_ids}
 
     regions = [
         _Region(name=names_by_id[int(source_id)], source_id=int(source_id), material_id=index)
