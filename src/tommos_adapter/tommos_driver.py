@@ -287,7 +287,7 @@ class MinDriver(Driver):
         field protocol understandable by ``tommos``.
 
         - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
-        - ``hx``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hy``: ``y`` component in Cartesian coordinates of applied field axis.
         - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
         - ``hstart``: Start field magnitude in Tesla.
         - ``hfinal``: Final field magnitude in Tesla.
