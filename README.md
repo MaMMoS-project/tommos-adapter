@@ -29,6 +29,25 @@ before your session ends.
 
 APIs and tutorials are available in the documentation. To access the documentation, use the badge in the table above.
 
+### Reading TOMMOS results
+
+The adapter registers a `micromagneticdata` plugin for reading saved drives:
+
+```python
+import micromagneticdata as md
+
+drive = md.Data(name="my_system", dirname=".")[0]
+state = drive[0]  # PyVista UnstructuredGrid in SI coordinates, with original mesh metadata
+snapshot_data = drive.table  # one row per saved state, in the same order as drive[i]
+hysteresis = drive.full_table  # every computed field step, including unsaved states
+```
+
+When `mstep` suppresses snapshots, `drive.n` counts the available snapshots.
+`drive.table` selects the row at which each snapshot was saved using the TOMMOS
+`config` identifier. Indexing, iteration, and slicing therefore use the same
+snapshot order. `drive.full_table` retains the complete source drive's scalar
+data, units, and metadata, even when accessed through a slice.
+
 ## Installation
 
 To install `tommos-adapter`, you can use `pip install tommos-adapter` inside a Python environment.

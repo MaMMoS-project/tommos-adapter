@@ -232,7 +232,7 @@ def test_call_passes_progress_information():
 def _write_tommos_output(state, output_file, magnetization):
     """Write a minimal VTU file matching TOMMOS output."""
     output_state = state.copy()
-    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
+    output_state.points = ta.scripts.mesh_data(mm.System(name="output", m=state))["knt"].astype(np.float32)
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
     output_state.point_data["U"] = np.zeros(state.n_points)
@@ -240,9 +240,11 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table):
+@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table, dtype):
     """Read the last TOMMOS state and table while retaining grid metadata."""
     state = state_zero.copy()
+    state.points = (state.points * 1.19).astype(dtype)
     state.point_data["m"][:, 2] = 1
     state.point_data["custom_point_data"] = np.arange(state.n_points)
     state.cell_data["region"] = np.arange(state.n_cells)
@@ -299,7 +301,8 @@ def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
-    points = np.vstack([state.points / ta.scripts.DEFAULT_MESH_UNIT, airbox_points]).astype(np.float32)
+    input_points = ta.scripts.mesh_data(system)["knt"]
+    points = np.vstack([input_points, airbox_points]).astype(np.float32)
     magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
     connectivity = np.vstack([state.cell_connectivity.reshape(-1, 4), np.arange(4) + state.n_points])
     order = np.random.default_rng(1).permutation(len(points))
