@@ -274,9 +274,10 @@ class MinDriver(Driver):
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate driver arguments."""
-        if {"Hmin", "Hmax", "n"}.intersection(kwargs):
-            raise RuntimeError(
-                f"Arguments `Hmin`, `Hmax`, `n` are not supported in `MinDriver`. Given arguments: {kwargs}"
+        if {"h_direction", "h_start", "h_final", "n"}.intersection(kwargs):
+            raise TypeError(
+                "Arguments `h_direction`, `h_start`, `h_final`, `n` are not supported in `MinDriver`. "
+                f"Given arguments: {kwargs}"
             )
 
     def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:

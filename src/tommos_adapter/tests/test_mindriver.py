@@ -117,14 +117,15 @@ def test_check_system_requires_unstructured_grid():
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"Hmin": (-1, 0, 0)},
-        {"Hmax": (1, 0, 0)},
+        {"h_direction": (1, 0, 0)},
+        {"h_start": -1.0},
+        {"h_final": 1.0},
         {"n": 3},
     ],
 )
 def test_wrong_args(kwargs):
     """Test `MinDriver` with not allowed arguments."""
-    with pytest.raises(RuntimeError, match="Arguments `Hmin`, `Hmax`, `n` are not supported"):
+    with pytest.raises(TypeError, match="Arguments `h_direction`, `h_start`, `h_final`, `n` are not supported"):
         ta.MinDriver()._checkargs(kwargs)
 
 
