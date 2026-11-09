@@ -3,6 +3,7 @@
 import shlex
 import shutil
 import subprocess
+import sys
 from collections.abc import Sequence
 
 from micromagneticmodel import adapter_base
@@ -53,6 +54,9 @@ class TommosRunner(adapter_base.ExternalRunner):
             result of the subprocess call is returned.
         """
         command = [*self.command, "loop", *shlex.split(argstr)]
+
+        if sys.platform == "darwin":
+            command += shlex.split(" --cpu-spmv-backend scipy --no-cpp-mkl")
 
         # `need_stderr` is ignored in this implementation, and stdout and stderr are always captured.
         stdout = stderr = subprocess.PIPE
