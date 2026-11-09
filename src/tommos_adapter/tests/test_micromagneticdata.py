@@ -146,100 +146,79 @@ def sparse_drive(drive):
 
 
 @pytest.mark.parametrize("use_cache", [False, True])
-def test_sparse_snapshots_align_with_table(sparse_drive, use_cache):
-    """Associate each saved state with the field at which it was written."""
+def test_sparse_drive_preserves_complete_table(sparse_drive, use_cache):
+    """Keep every field step even when fewer magnetisation snapshots are saved."""
     drive = sparse_drive
     drive.use_cache = use_cache
-    assert drive.n == 2
+    assert drive.n == 3
     assert len(list(drive)) == 2
-    np.testing.assert_array_equal(drive.table.data["config"], [0, 1])
-    np.testing.assert_array_equal(drive.table.data["B_hysteresis"], [-1, 1])
+    np.testing.assert_array_equal(drive.table.data["config"], [0, 0, 1])
+    np.testing.assert_array_equal(drive.table.data["B_hysteresis"], [-1, 0, 1])
+    np.testing.assert_array_equal(drive.table.data["J_par"], [-0.9, 0.1, 0.95])
+    np.testing.assert_array_equal(drive.table.data["future_column"], [7, 8, 9])
+    assert drive.table.units["B_hysteresis"] == "T"
+    assert drive.table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
     np.testing.assert_array_equal(drive[1].point_data["m"], np.tile((0, 1, 0), (4, 1)))
     with pytest.raises(IndexError):
         drive[2]
 
-    np.testing.assert_array_equal(drive.full_table.data["config"], [0, 0, 1])
-    np.testing.assert_array_equal(drive.full_table.data["B_hysteresis"], [-1, 0, 1])
-    assert drive.full_table.units == drive.table.units
-    assert drive.full_table.attributes == drive.table.attributes
 
+@pytest.mark.parametrize("snapshots", ["missing", "none", "unmatched"])
+def test_table_is_independent_of_snapshot_files(sparse_drive, snapshots):
+    """Read the complete scalar data regardless of which state files exist."""
+    drive = sparse_drive
+    files = drive._step_files
+    if snapshots == "missing":
+        files[0].unlink()
+    elif snapshots == "none":
+        for filename in files:
+            filename.unlink()
+    else:
+        files[1].rename(files[1].with_name("state_cfg00002_B+1.0000e+00T.vtu"))
 
-def test_sparse_drive_slices_keep_matching_states(sparse_drive):
-    """Slice and concatenate snapshots with the corresponding scalar rows."""
-    last = sparse_drive[1:]
-    assert last.n == 1
-    np.testing.assert_array_equal(last.table.data["B_hysteresis"], [1])
-    np.testing.assert_array_equal(last[0].point_data["m"], sparse_drive[1].point_data["m"])
-    assert len(last.full_table.data) == 3
-
-    reversed_drive = sparse_drive[::-1]
-    np.testing.assert_array_equal(reversed_drive.table.data["B_hysteresis"], [1, -1])
-    np.testing.assert_array_equal(reversed_drive[0].point_data["m"], sparse_drive[1].point_data["m"])
-    assert sparse_drive[:0].n == 0
-    assert list(sparse_drive[:0]) == []
-    assert list(sparse_drive[:0].register_callback(lambda state: state)) == []
-
-    combined = sparse_drive << sparse_drive
-    assert combined.n == 4
-    assert len(list(combined)) == 4
-    np.testing.assert_array_equal(combined.table.data["config"], [0, 1, 0, 1])
-
-
-def test_snapshot_configuration_controls_table_mapping(sparse_drive):
-    """Use numeric configuration identifiers even if a state file is missing."""
-    files = sparse_drive._step_files
-    files[0].unlink()
-    assert sparse_drive.n == 1
-    np.testing.assert_array_equal(sparse_drive.table.data["B_hysteresis"], [1])
-    assert len(sparse_drive.full_table.data) == 3
-
-
-def test_snapshot_without_table_row_is_rejected(drive):
-    """Do not silently pair a snapshot with an unrelated table row."""
-    filename = drive._step_files[1]
-    filename.rename(filename.with_name("state_cfg00002_B+1.0000e+00T.vtu"))
-    with pytest.raises(RuntimeError, match="configuration.*2"):
-        _ = drive.table
+    assert drive.n == 3
+    np.testing.assert_array_equal(drive.table.data["config"], [0, 0, 1])
+    np.testing.assert_array_equal(drive.table.data["B_hysteresis"], [-1, 0, 1])
 
 
 @pytest.mark.parametrize("selection", ["cached", "slice", "callback"])
-def test_changing_x_updates_cached_tables(drive, selection):
-    """Keep both table axes consistent without changing the source drive."""
+def test_changing_x_updates_cached_table(drive, selection):
+    """Update the cached independent variable without changing the source drive."""
     if selection == "slice":
         selected = drive[1:]
     else:
         drive.use_cache = True
         selected = drive if selection == "cached" else drive.register_callback(lambda state: state)
-    _ = selected.table
+    original_data = selected.table.data.copy()
     selected.x = "J_par"
-    assert selected.x == selected.table.x == selected.full_table.x == "J_par"
+    assert selected.x == selected.table.x == "J_par"
+    assert selected.table.data.equals(original_data)
     if selected is not drive:
         assert drive.x == drive.table.x == "B_hysteresis"
 
     with pytest.raises(ValueError):
         selected.x = "missing_column"
-    assert selected.x == selected.table.x == selected.full_table.x == "J_par"
+    assert selected.x == selected.table.x == "J_par"
 
     selected.x = None
-    assert selected.x == selected.table.x == selected.full_table.x == "B_hysteresis"
+    assert selected.x == selected.table.x == "B_hysteresis"
 
 
 def test_initial_x_with_cache(drive):
-    """Validate a custom axis before the default axis has been initialised."""
+    """Validate a custom independent variable during initialisation."""
     selected = mdata.Drive(name=drive.name, number=drive.number, dirname=drive.dirname, x="J_par", use_cache=True)
-    assert selected.x == selected.table.x == selected.full_table.x == "J_par"
+    assert selected.x == selected.table.x == "J_par"
     with pytest.raises(ValueError):
         mdata.Drive(name=drive.name, number=drive.number, dirname=drive.dirname, x="missing_column", use_cache=True)
 
 
-def test_disabling_cache_refreshes_full_table(drive):
-    """Refresh both scalar tables and snapshot discovery when caching is disabled."""
+def test_disabling_cache_refreshes_table(drive):
+    """Reload all scalar data when caching is disabled."""
     drive.use_cache = True
-    assert len(drive.table.data) == len(drive.full_table.data) == 2
+    assert len(drive.table.data) == 2
     csv = _MAMMOS_CSV.replace("1,1,0.95", "0,0,0.1,100000,40,8\n1,1,0.95")
     drive._table_path.write_text(csv, encoding="utf-8")
-    assert len(drive.full_table.data) == 2
+    assert len(drive.table.data) == 2
 
     drive.use_cache = False
-    assert len(drive.full_table.data) == 3
-    assert len(drive.table.data) == 2
+    assert len(drive.table.data) == 3
