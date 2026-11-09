@@ -83,9 +83,8 @@ class TommosDrive(mdata.Drive):
             return state
 
         initial_state = _read_unstructured_grid(self._m0_path)
-        result = initial_state.copy(deep=True)
-        result.point_data["m"] = _magnetization_without_airbox(initial_state, state)
-        return result
+        initial_state.point_data["m"] = _magnetization_without_airbox(initial_state, state)
+        return initial_state
 
 
 def _read_unstructured_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
