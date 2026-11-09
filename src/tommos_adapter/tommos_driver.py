@@ -33,18 +33,6 @@ def _magnetization_without_airbox(system: micromagneticmodel.System, output_stat
     coordinates of the original ones. Delete this function once tommos writes its output
     without the airbox.
     """
-    if not isinstance(output_state, pv.UnstructuredGrid):
-        raise RuntimeError("tommos output is not an UnstructuredGrid.")
-    if "m" not in output_state.point_data:
-        raise RuntimeError("tommos output does not contain point data 'm'.")
-
-    magnetization = np.asarray(output_state.point_data["m"])
-    expected_shape = (output_state.n_points, 3)
-    if magnetization.shape != expected_shape:
-        raise RuntimeError(f"tommos output magnetization has shape {magnetization.shape}; expected {expected_shape}.")
-    if not np.all(np.isfinite(magnetization)):
-        raise RuntimeError("tommos output magnetization contains non-finite values.")
-
     knt = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
     output_points = np.asarray(output_state.points)
     # tommos writes float32 coordinates, so the input points are rounded the same way.
@@ -55,7 +43,7 @@ def _magnetization_without_airbox(system: micromagneticmodel.System, output_stat
     point_map = output_index[key[: len(knt)]]
     if np.any(point_map < 0) or len(np.unique(point_map)) != len(knt):
         raise RuntimeError("Mesh in tommos output does not match system.m.")
-    return magnetization[point_map]
+    return np.asarray(output_state.point_data["m"])[point_map]
 
 
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
@@ -206,6 +194,21 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             output_state = pv.read(last_output_file)
         except Exception as error:
             raise RuntimeError(f"Cannot read tommos output '{last_output_file}'.") from error
+
+        if not isinstance(output_state, pv.UnstructuredGrid):
+            raise RuntimeError(f"tommos output '{last_output_file}' is not an UnstructuredGrid.")
+        if "m" not in output_state.point_data:
+            raise RuntimeError(f"tommos output '{last_output_file}' does not contain point data 'm'.")
+
+        output_magnetization = np.asarray(output_state.point_data["m"])
+        expected_shape = (output_state.n_points, 3)
+        if output_magnetization.shape != expected_shape:
+            raise RuntimeError(
+                f"tommos output magnetization has shape {output_magnetization.shape}; expected {expected_shape}."
+            )
+        if not np.all(np.isfinite(output_magnetization)):
+            raise RuntimeError("tommos output magnetization contains non-finite values.")
+
         magnetization = _magnetization_without_airbox(system, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
