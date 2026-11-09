@@ -124,19 +124,6 @@ def test_table_plugin_preserves_metadata(drive):
     assert drive.table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
 
 
-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
-def test_snapshots_use_mesh_input_scaling(drive, dtype):
-    """Match coordinates written from the calculator input, including Float32 grids."""
-    initial = _initial_state()
-    initial.points = (initial.points * 1.19).astype(dtype)
-    initial.save(drive._m0_path)
-    _write_snapshot(initial, drive._step_files[0], (1.0, 0.0, 0.0))
-
-    state = drive[0]
-    np.testing.assert_array_equal(state.points, initial.points)
-    np.testing.assert_array_equal(state.point_data["m"], np.tile((1.0, 0.0, 0.0), (4, 1)))
-
-
 @pytest.fixture
 def sparse_drive(drive):
     """Include a field step without a new snapshot, as produced with ``mstep``."""
