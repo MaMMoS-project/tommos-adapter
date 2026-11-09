@@ -292,6 +292,8 @@ class MinDriver(Driver):
         - ``hstart``: Start field magnitude in Tesla.
         - ``hfinal``: Final field magnitude in Tesla.
 
+        The parameter ``hstep`` is set to 1 internally because ``tommos`` always requires a non-zero field step.
+
         Args:
             system: Micromagnetic system.
             kwargs: Given keyword arguments.
