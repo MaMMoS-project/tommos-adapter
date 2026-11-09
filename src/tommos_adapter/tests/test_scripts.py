@@ -1,4 +1,4 @@
-"""Tests for the tommos input translation functions."""
+"""Tests for the TOMMOS input translation functions."""
 
 import configparser
 import io
@@ -95,7 +95,7 @@ def test_krn_script_translates_regional_materials(system):
 
 
 def test_krn_script_matches_known_example(system):
-    """KRN translation matches a known tommos input file."""
+    """KRN translation matches a known TOMMOS input file."""
     expected = (
         "0 0 1000000 0 1.2566370614359172 9.9999999999999994e-12\n"
         "1.5707963267948966 0 200000 0 0.62831853071795862 4.9999999999999997e-12\n"
@@ -157,7 +157,7 @@ def test_p2_script_rejects_nonuniform_m(system):
 
 
 def test_krn_script_rejects_missing_demag(system):
-    """Systems must declare the demagnetisation energy tommos computes."""
+    """Systems must declare the demagnetisation energy TOMMOS computes."""
     system.energy = mm.Exchange(A=1e-11)
 
     with pytest.raises(ValueError, match="always computes demagnetisation"):
@@ -168,7 +168,7 @@ def test_krn_script_rejects_zeeman(system):
     """The hysteresis driver, rather than a Zeeman term, defines the field."""
     system.energy += mm.Zeeman(H=(0, 0, 1e6))
 
-    with pytest.raises(ValueError, match="not supported by tommos"):
+    with pytest.raises(ValueError, match="not supported by TOMMOS"):
         scripts.krn_script(system)
 
 
