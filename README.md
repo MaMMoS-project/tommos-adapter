@@ -29,7 +29,7 @@ before your session ends.
 
 APIs and tutorials are available in the documentation. To access the documentation, use the badge in the table above.
 
-### Reading TOMMOS results
+### Reading tommos results
 
 The adapter registers a `micromagneticdata` plugin for reading saved drives:
 
@@ -43,7 +43,7 @@ hysteresis = drive.full_table  # every computed field step, including unsaved st
 ```
 
 When `mstep` suppresses snapshots, `drive.n` counts the available snapshots.
-`drive.table` selects the row at which each snapshot was saved using the TOMMOS
+`drive.table` selects the row at which each snapshot was saved using the tommos
 `config` identifier. Indexing, iteration, and slicing therefore use the same
 snapshot order. `drive.full_table` retains the complete source drive's scalar
 data, units, and metadata, even when accessed through a slice.

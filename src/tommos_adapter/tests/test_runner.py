@@ -1,4 +1,4 @@
-"""Test configurable TOMMOS command construction and executable lookup."""
+"""Test configurable tommos command construction and executable lookup."""
 
 import re
 import shlex
@@ -21,11 +21,11 @@ def platform_suffix():
 
 def test_name():
     """Expose the calculator name expected by the external-runner API."""
-    assert TommosRunner().package_name == "Tommos"
+    assert TommosRunner().package_name == "tommos"
 
 
 def test_call_dry_run(platform_suffix):
-    """Construct the default TOMMOS command without executing it."""
+    """Construct the default tommos command without executing it."""
     runner = TommosRunner()
     cmd = runner._call("hyst", dry_run=True)
     assert cmd == "tommos loop hyst" + platform_suffix

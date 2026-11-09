@@ -1,8 +1,8 @@
-"""Translate micromagnetic models into TOMMOS input data.
+"""Translate micromagnetic models into tommos input data.
 
 The functions in this module deliberately do not write files.  They produce
-the text and arrays needed by TOMMOS so that the translation can be tested
-independently from a driver and from the TOMMOS executable.
+the text and arrays needed by tommos so that the translation can be tested
+independently from a driver and from the tommos executable.
 
 The provisional unstructured-grid contract is:
 
@@ -12,7 +12,7 @@ The provisional unstructured-grid contract is:
 * ``field_data["region_ids"]`` and ``field_data["region_names"]`` optionally
   map numeric region identifiers to names used in parameter dictionaries.
 
-TOMMOS material identifiers are contiguous and one-based.  Source region
+tommos material identifiers are contiguous and one-based.  Source region
 identifiers are therefore remapped when mesh data are generated.
 """
 
@@ -32,7 +32,7 @@ DEFAULT_MESH_UNIT = 1e-9
 
 @dataclass(frozen=True)
 class _Region:
-    """Region information required by the TOMMOS input formats."""
+    """Region information required by the tommos input formats."""
 
     name: str
     source_id: int
@@ -45,10 +45,10 @@ def mesh_data(
     mesh_unit: float = DEFAULT_MESH_UNIT,
     region_key: str = "region_id",
 ) -> dict[str, np.ndarray]:
-    """Return TOMMOS ``knt`` and ``ijk`` arrays for a system.
+    """Return tommos ``knt`` and ``ijk`` arrays for a system.
 
     Coordinates in an Ubermag model are assumed to be in metres.  ``knt`` is
-    scaled by ``mesh_unit`` because TOMMOS stores dimensionless mesh
+    scaled by ``mesh_unit`` because tommos stores dimensionless mesh
     coordinates and records the physical unit in the ``.p2`` file.
 
     Args:
@@ -130,10 +130,10 @@ def initial_magnetisation(system: mm.System, *, key: str = "m") -> np.ndarray:
 
 
 def needs_initial_state_file(system: mm.System, *, key: str = "m") -> bool:
-    """Return whether TOMMOS needs a VTU file for the initial state.
+    """Return whether tommos needs a VTU file for the initial state.
 
     Uniform magnetisation can be represented directly in a ``.p2`` file.
-    Non-uniform magnetisation currently has to use TOMMOS' restart-VTU path.
+    Non-uniform magnetisation currently has to use tommos' restart-VTU path.
 
     Args:
         system: Micromagnetic system to inspect.
@@ -152,9 +152,9 @@ def krn_data(
     region_key: str = "region_id",
     saturation_key: str = "Ms",
 ) -> np.ndarray:
-    """Return the TOMMOS material table represented by a ``.krn`` file.
+    """Return the tommos material table represented by a ``.krn`` file.
 
-    Each row contains ``theta, phi, K1, K2, Js, A``.  TOMMOS expects ``Js``
+    Each row contains ``theta, phi, K1, K2, Js, A``.  tommos expects ``Js``
     in tesla, whereas the provisional grid contract stores ``Ms`` in A/m.
 
     Args:
@@ -166,7 +166,7 @@ def krn_data(
         A floating-point array with one row per material.
 
     Raises:
-        ValueError: If material parameters cannot be represented by TOMMOS.
+        ValueError: If material parameters cannot be represented by tommos.
     """
     grid = _grid(system)
     source_ids, regions = _regions(grid, region_key=region_key)
@@ -213,7 +213,7 @@ def krn_script(
     region_key: str = "region_id",
     saturation_key: str = "Ms",
 ) -> str:
-    """Return the contents of a TOMMOS ``.krn`` material file.
+    """Return the contents of a tommos ``.krn`` material file.
 
     Args:
         system: Micromagnetic system to translate.
@@ -221,7 +221,7 @@ def krn_script(
         saturation_key: Name of the cell-data saturation-magnetisation array.
 
     Returns:
-        Space-separated TOMMOS material rows ending with a newline.
+        Space-separated tommos material rows ending with a newline.
     """
     output = io.StringIO()
     np.savetxt(
@@ -248,9 +248,9 @@ def p2_script(
     tol_fun: float | None = None,
     eps_a: float | str | None = None,
 ) -> str:
-    """Return a TOMMOS ``.p2`` file for a hysteresis calculation.
+    """Return a tommos ``.p2`` file for a hysteresis calculation.
 
-    The field arguments are TOMMOS parameters produced by
+    The field arguments are tommos parameters produced by
     :class:`tommos_adapter.HysteresisDriver`. Field magnitudes are magnetic
     flux densities in tesla and ``(hx, hy, hz)`` is a unit vector.
 
@@ -271,7 +271,7 @@ def p2_script(
         eps_a: Optional absolute tangent-gradient tolerance or ``"auto"``.
 
     Returns:
-        INI-formatted TOMMOS parameter text.
+        INI-formatted tommos parameter text.
     """
     if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
         raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
@@ -296,7 +296,7 @@ def p2_script(
     magnetisation = initial_magnetisation(system)
     if needs_initial_state_file(system):
         raise ValueError(
-            "TOMMOS adapter currently supports only a uniform initial magnetisation; "
+            "tommos adapter currently supports only a uniform initial magnetisation; "
             "writing a restart VTU file is not implemented yet."
         )
 
@@ -352,7 +352,7 @@ def p2_script(
 def _grid(system: mm.System) -> pv.UnstructuredGrid:
     grid = system.m
     if not isinstance(grid, pv.UnstructuredGrid):
-        raise TypeError(f"TOMMOS requires system.m to be a pyvista.UnstructuredGrid, got {type(grid).__name__}.")
+        raise TypeError(f"tommos requires system.m to be a pyvista.UnstructuredGrid, got {type(grid).__name__}.")
     if grid.n_points == 0 or grid.n_cells == 0:
         raise ValueError("The unstructured grid must contain points and cells.")
     return grid
@@ -362,7 +362,7 @@ def _tetra_connectivity(grid: pv.UnstructuredGrid) -> np.ndarray:
     cell_types = np.asarray(grid.celltypes)
     tetra_type = int(pv.CellType.TETRA)
     if cell_types.shape != (grid.n_cells,) or np.any(cell_types != tetra_type):
-        raise ValueError("TOMMOS currently supports tetrahedral cells only.")
+        raise ValueError("tommos currently supports tetrahedral cells only.")
     connectivity = np.asarray(grid.cells_dict[tetra_type], dtype=np.int64)
     if connectivity.shape != (grid.n_cells, 4):
         raise ValueError(f"Expected tetrahedral connectivity with shape {(grid.n_cells, 4)}, got {connectivity.shape}.")
@@ -430,14 +430,14 @@ def _energy_terms(system: mm.System) -> dict[type, object]:
     result = {}
     for term in system.energy:
         if not isinstance(term, supported):
-            raise ValueError(f"Energy term {term!r} is not supported by TOMMOS.")
+            raise ValueError(f"Energy term {term!r} is not supported by tommos.")
         term_type = type(term)
         if term_type in result:
-            raise ValueError(f"Only one {term_type.__name__} term is supported by TOMMOS.")
+            raise ValueError(f"Only one {term_type.__name__} term is supported by tommos.")
         result[term_type] = term
 
     if mm.Demag not in result:
-        raise ValueError("TOMMOS currently always computes demagnetisation; system.energy must contain Demag().")
+        raise ValueError("tommos currently always computes demagnetisation; system.energy must contain Demag().")
     return result
 
 
@@ -493,7 +493,7 @@ def _anisotropy_values(term: mm.UniaxialAnisotropy, region_names: list[str]) -> 
     if "K2" in term.__dict__:
         k2 = _scalar_values(term.__dict__["K2"], region_names, parameter="K2")
         if np.any(k2 != 0):
-            raise ValueError("Non-zero K2 is not supported because TOMMOS currently ignores the K2 material column.")
+            raise ValueError("Non-zero K2 is not supported because tommos currently ignores the K2 material column.")
 
     axes = _vector_values(term.__dict__.get("u", (0.0, 0.0, 1.0)), region_names, parameter="u")
     return anisotropy, axes
@@ -521,7 +521,7 @@ def _saturation_values(
         region_values = saturation[source_ids == region.source_id]
         if not np.allclose(region_values, region_values[0], rtol=1e-12, atol=0.0):
             raise ValueError(
-                f"TOMMOS requires a constant {saturation_key} per region; "
+                f"tommos requires a constant {saturation_key} per region; "
                 f"region {region.name!r} contains multiple values."
             )
         result.append(region_values[0])

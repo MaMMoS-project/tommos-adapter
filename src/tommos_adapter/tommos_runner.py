@@ -13,7 +13,7 @@ class TommosRunner(adapter_base.ExternalRunner):
     """Runner to execute `tommos`.
 
     Args:
-        command: Executable or command prefix used to invoke TOMMOS. For example,
+        command: Executable or command prefix used to invoke tommos. For example,
             ``"tommos"``, ``"/path/to/tommos"``, or
             ``["pixi", "run", "-e", "cuda", "tommos"]``.
     """
@@ -22,7 +22,7 @@ class TommosRunner(adapter_base.ExternalRunner):
         """Initialise the runner.
 
         Args:
-            command: Executable or command prefix used to invoke TOMMOS.
+            command: Executable or command prefix used to invoke tommos.
 
         Raises:
             ValueError: If the command is empty or contains a part that is not
@@ -39,7 +39,7 @@ class TommosRunner(adapter_base.ExternalRunner):
     @property
     def package_name(self) -> str:
         """Name of the calculator."""
-        return "Tommos"
+        return "tommos"
 
     def _call(self, argstr: str, need_stderr: bool = False, dry_run: bool = False) -> str | subprocess.CompletedProcess:
         """Call the external calculator in a subprocess.
@@ -67,7 +67,7 @@ class TommosRunner(adapter_base.ExternalRunner):
         executable = shutil.which(command[0])
         if executable is None:
             msg = (
-                f"Cannot run TOMMOS: command executable {command[0]!r} was not found. "
+                f"Cannot run tommos: command executable {command[0]!r} was not found. "
                 "Install it, add it to PATH, or configure TommosRunner(command=...)."
             )
             raise OSError(msg)

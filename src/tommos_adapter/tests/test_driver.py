@@ -213,7 +213,7 @@ def test_schedule_command():
 
 
 def test_call_passes_progress_information():
-    """Pass the number and location of TOMMOS snapshots to the runner."""
+    """Pass the number and location of tommos snapshots to the runner."""
     system = mm.System(name="test_progress")
     runner = Mock()
 
@@ -230,7 +230,7 @@ def test_call_passes_progress_information():
 
 
 def _write_tommos_output(state, output_file, magnetization):
-    """Write a minimal VTU file matching TOMMOS output."""
+    """Write a minimal VTU file matching tommos output."""
     output_state = state.copy()
     output_state.points = ta.scripts.mesh_data(mm.System(name="output", m=state))["knt"].astype(np.float32)
     output_state.clear_data()
@@ -242,7 +242,7 @@ def _write_tommos_output(state, output_file, magnetization):
 
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table, dtype):
-    """Read the last TOMMOS state and table while retaining grid metadata."""
+    """Read the last tommos state and table while retaining grid metadata."""
     state = state_zero.copy()
     state.points = (state.points * 1.19).astype(dtype)
     state.point_data["m"][:, 2] = 1
@@ -323,7 +323,7 @@ def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_
 
 
 def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
-    """Missing TOMMOS snapshots produce a helpful error without changing the system."""
+    """Missing tommos snapshots produce a helpful error without changing the system."""
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     system = mm.System(name="missing_output", m=state)
@@ -338,7 +338,7 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
 def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, invalid_output):
-    """Invalid TOMMOS snapshots do not partially update the system."""
+    """Invalid tommos snapshots do not partially update the system."""
     state = state_zero.copy()
     state.point_data["m"][:, 2] = 1
     system = mm.System(name="invalid_output", m=state)
@@ -400,7 +400,7 @@ def test_check_system_missing_magnetization():
 
 
 def test_check_system_requires_unstructured_grid():
-    """TOMMOS does not accept a discretisedfield magnetization."""
+    """Reject discretisedfield magnetization for tommos."""
     system = mm.examples.macrospin()
 
     with pytest.raises(TypeError, match=r"pyvista\.UnstructuredGrid"):
@@ -416,7 +416,7 @@ def test_check_system_requires_unstructured_grid():
     ],
 )
 def test_check_system_requires_grid_data(state_zero, association, name, error_message):
-    """All arrays needed to create TOMMOS inputs must be present."""
+    """All arrays needed to create tommos inputs must be present."""
     state = state_zero.copy()
     state.point_data["m"][:, 0] = 1
     getattr(state, association).remove(name)

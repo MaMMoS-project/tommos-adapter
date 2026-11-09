@@ -17,7 +17,7 @@ from tommos_adapter.plugins.read_table import table_from_file
 
 
 class TommosDrive(mdata.Drive):
-    """Read TOMMOS snapshots as PyVista unstructured grids.
+    """Read tommos snapshots as PyVista unstructured grids.
 
     ``table`` contains one row per available snapshot, in the same order as
     indexing and iteration. ``full_table`` retains every computed field step,
@@ -77,13 +77,13 @@ class TommosDrive(mdata.Drive):
             return self._table
 
         table = copy.copy(self.full_table)
-        # TOMMOS increments config only when saving a snapshot. Later rows with
+        # tommos increments config only when saving a snapshot. Later rows with
         # the same config describe unsaved states, so only the first row matches.
         rows = table.data.drop_duplicates("config", keep="first").set_index("config", drop=False)
         configurations = [_snapshot_configuration(filename) for filename in self._step_files]
         missing = sorted(set(configurations) - set(rows.index))
         if missing:
-            raise RuntimeError(f"TOMMOS snapshots have no table rows for configurations {missing}.")
+            raise RuntimeError(f"tommos snapshots have no table rows for configurations {missing}.")
         table.data = rows.loc[configurations].reset_index(drop=True)
         if self.use_cache:
             self._table = table
@@ -148,7 +148,7 @@ class TommosDrive(mdata.Drive):
 def _snapshot_configuration(filename: pathlib.Path) -> int:
     match = re.fullmatch(r"state_cfg(\d+)_.*\.vtu", filename.name)
     if match is None:
-        raise RuntimeError(f"Cannot determine TOMMOS snapshot configuration from '{filename}'.")
+        raise RuntimeError(f"Cannot determine tommos snapshot configuration from '{filename}'.")
     return int(match.group(1))
 
 
