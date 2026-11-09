@@ -75,6 +75,29 @@ def tommos_simulation(tmp_path_factory):
     return system, output_directory
 
 
+@pytest.fixture(scope="session")
+def tiny_mesh(data_dir):
+    """Define very small mesh.
+
+    The mesh is a cube of side length 2nm with 2nm mesh size.
+
+    The default magnetization is uniform and set to (0, 0, 1). The saturation magnetization
+    corresponds to a spontaneous polarization of 1 T everywhere.
+
+    This magnetization can be used in tests with calls to drivers where the physical result is not important.
+    """
+    cmd = "tommos mesh --geom box --extent 2,2,2 --h 2 --out-name tiny"
+    subprocess.run(shlex.split(cmd), cwd=data_dir)
+    m = pv.read(data_dir / "tiny.vtu")
+    m.points *= 1e-9
+    id_array = m.get_array("mat_id")
+    m.cell_data["region_id"] = id_array
+    m.cell_data.remove("mat_id")
+    m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
+    m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
+    return m
+
+
 @pytest.fixture
 def write_mammos_table():
     """Return a factory writing synthetic TOMMOS tabular output."""

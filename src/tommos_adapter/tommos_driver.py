@@ -77,6 +77,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             if not isinstance(nd, int) or nd < 0:
                 raise ValueError(f"Parameter `num_devices` should be a non-negative integer. Got: {nd}")
             argstr += f" --num-devices {nd}"
+        if kwargs.get("full_loop"):
+            argstr += " --loop"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
@@ -131,27 +133,31 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = TommosRunner()
         runner.call(
-            argstr=self.get_argstr(system),
+            argstr=self.get_argstr(system, **kwargs),
             verbose=verbose,
             total=kwargs.get("n"),
             glob_name=f"hyst_{system.name}/*.vtu",
         )
 
     def _schedule_commands(
-        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+        self,
+        system: micromagneticmodel.System,
+        runner: tommos_adapter.tommos_runner.TommosRunner,
+        **kwargs: Any,
     ) -> list[str]:
         """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
+            **kwargs: Optional keyword arguments passed to the scheduler call.
 
         Returns:
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
+        return [runner._call(argstr=self.get_argstr(system, **kwargs), dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
