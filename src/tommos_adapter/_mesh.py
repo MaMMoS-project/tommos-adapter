@@ -5,8 +5,6 @@ import os
 import numpy as np
 import pyvista as pv
 
-from tommos_adapter.scripts import DEFAULT_MESH_UNIT
-
 
 def _read_magnetisation_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
     """Read a tommos VTU grid and validate its point magnetisation.
@@ -46,7 +44,7 @@ def _read_magnetisation_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid
 def _magnetization_without_airbox(reference: pv.UnstructuredGrid, output_state: pv.UnstructuredGrid) -> np.ndarray:
     """Return output magnetization at the points of a reference mesh."""
     # Match mesh_data(): scale in float64 before tommos rounds its output to float32.
-    reference_points = np.asarray(reference.points, dtype=np.float64) / DEFAULT_MESH_UNIT
+    reference_points = np.asarray(reference.points, dtype=np.float64)
     output_points = np.asarray(output_state.points)
     # tommos writes float32 coordinates, so the reference points are rounded the same way.
     _, key = np.unique(

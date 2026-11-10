@@ -35,10 +35,10 @@ def state_zero(mesh):
     a spontaneous polarization of 1 T everywhere.
     """
     state = pv.read(mesh["vtu"])
-    state.points *= 1e-9
     m = np.zeros((state.n_points, 3), dtype=np.float32)
     state.point_data["m"] = m
     state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
+    state.field_data["mesh_unit_length"] = 1e-9
     return state
 
 
@@ -52,10 +52,10 @@ def tommos_simulation(tmp_path_factory):
         check=True,
     )
     grid = pv.read(output_directory / "table.vtu")
-    grid.points *= 1e-9
     grid.cell_data["mat_id"] = grid.cell_data.pop("mat_id")
     grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
     grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
+    grid.field_data["mesh_unit_length"] = 1e-9
 
     system = mm.System(name="table_output", m=grid)
     system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(1, 0, 0)) + mm.Demag()
@@ -86,9 +86,9 @@ def tiny_mesh(data_dir):
     cmd = "tommos mesh --geom box --extent 2,2,2 --h 2 --out-name tiny"
     subprocess.run(shlex.split(cmd), cwd=data_dir)
     m = pv.read(data_dir / "tiny.vtu")
-    m.points *= 1e-9
     m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
     m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
+    m.field_data["mesh_unit_length"] = 1e-9
     return m
 
 

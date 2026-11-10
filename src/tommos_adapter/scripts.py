@@ -27,8 +27,6 @@ import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
 
-DEFAULT_MESH_UNIT = 1e-9
-
 
 @dataclass(frozen=True)
 class _Material:
@@ -42,19 +40,13 @@ class _Material:
 def mesh_data(
     system: mm.System,
     *,
-    mesh_unit: float = DEFAULT_MESH_UNIT,
     mat_key: str = "mat_id",
 ) -> dict[str, np.ndarray]:
     """Return TOMMOS ``knt`` and ``ijk`` arrays for a system.
 
-    Coordinates in an Ubermag model are assumed to be in metres.  ``knt`` is
-    scaled by ``mesh_unit`` because TOMMOS stores dimensionless mesh
-    coordinates and records the physical unit in the ``.p2`` file.
-
     Args:
         system: Micromagnetic system with a PyVista unstructured grid as
             magnetisation object.
-        mesh_unit: Physical length in metres represented by one mesh unit.
         mat_key: Name of the cell-data array containing material identifiers.
 
     Returns:
@@ -65,9 +57,6 @@ def mesh_data(
         ValueError: If the grid is empty, contains non-tetrahedral cells, or
             contains invalid material information.
     """
-    if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
-        raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
-
     grid = _grid(system)
     connectivity = _tetra_connectivity(grid)
     source_ids, materials = _materials(grid, mat_key=mat_key)
@@ -241,7 +230,6 @@ def p2_script(
     hstart: Real,
     hfinal: Real,
     hstep: Real,
-    mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
     mstep: float | None = None,
     method: str = "",
@@ -262,7 +250,6 @@ def p2_script(
         hstart: Initial applied field in tesla.
         hfinal: Final applied field in tesla.
         hstep: Applied-field step in tesla.
-        mesh_unit: Physical length in metres represented by one mesh unit.
         max_iter: Optional maximum number of minimiser iterations.
         mstep: Magnetization change threshold for saving ``.vtu`` snapshots. Setting this to a very large value
             (e.g. 10000) prevents VTU outputs to save disk space.
@@ -273,8 +260,6 @@ def p2_script(
     Returns:
         INI-formatted TOMMOS parameter text.
     """
-    if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
-        raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
     if max_iter is not None and (not isinstance(max_iter, int) or isinstance(max_iter, bool) or max_iter <= 0):
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
@@ -300,7 +285,16 @@ def p2_script(
             "writing a restart VTU file is not implemented yet."
         )
 
-    lines = ["[mesh]", f"size = {_format_number(mesh_unit)}", "", "[initial state]"]
+    lines = ["[mesh]"]
+    if "mesh_unit_length" in system.m.field_data:
+        mesh_unit_length = system.m.field_data["mesh_unit_length"]
+        if len(mesh_unit_length) != 1:
+            raise ValueError(f"Mesh unit length should be a single-valued field data. Got {mesh_unit_length}")
+        mul = mesh_unit_length[0]
+        if not isinstance(mul, Real) or not np.isfinite(mul) or mul <= 0:
+            raise ValueError(f"Mesh field data `mesh_unit_length` must be a positive finite number, got {mul!r}.")
+        lines.append(f"size = {mul}")
+    lines.extend(("", "[initial state]"))
     mx, my, mz = magnetisation[0]
     lines.extend(
         (
