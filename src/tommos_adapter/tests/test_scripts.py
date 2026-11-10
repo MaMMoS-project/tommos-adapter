@@ -13,7 +13,7 @@ from tommos_adapter import scripts
 
 @pytest.fixture
 def system():
-    """Return a two-region tetrahedral test system."""
+    """Return a tetrahedral test system with two materials."""
     points = np.array(
         [
             [0.0, 0.0, 0.0],
@@ -27,10 +27,10 @@ def system():
     cell_types = np.array([pv.CellType.TETRA, pv.CellType.TETRA], dtype=np.uint8)
     grid = pv.UnstructuredGrid(cells, cell_types, points)
     grid.point_data["m"] = np.tile((0.0, 0.0, 1.0), (grid.n_points, 1))
-    grid.cell_data["region_id"] = np.array([10, 20])
+    grid.cell_data["mat_id"] = np.array([10, 20])
     grid.cell_data["Ms"] = np.array([1e6, 0.5e6])
-    grid.field_data["region_ids"] = np.array([10, 20])
-    grid.field_data["region_names"] = np.array(["hard", "soft"])
+    grid.field_data["mat_ids"] = np.array([10, 20])
+    grid.field_data["mat_names"] = np.array(["hard", "soft"])
 
     energy = (
         mm.Exchange(A={"hard": 1e-11, "soft": 5e-12})
@@ -40,7 +40,7 @@ def system():
         )
         + mm.Demag()
     )
-    return mm.System(name="two_regions", energy=energy, m=grid)
+    return mm.System(name="two_materials", energy=energy, m=grid)
 
 
 def test_mesh_data_scales_points_and_remaps_regions(system):
@@ -53,11 +53,11 @@ def test_mesh_data_scales_points_and_remaps_regions(system):
     assert np.array_equal(data["ijk"][:, 4], np.array([1, 2]))
 
 
-def test_mesh_data_requires_region_ids(system):
-    """The public translator enforces the documented region contract."""
-    system.m.cell_data.remove("region_id")
+def test_mesh_data_requires_material_ids(system):
+    """The public translator enforces the documented material contract."""
+    system.m.cell_data.remove("mat_id")
 
-    with pytest.raises(ValueError, match="cell_data does not contain 'region_id'"):
+    with pytest.raises(ValueError, match="cell_data does not contain 'mat_id'"):
         scripts.mesh_data(system)
 
 
@@ -80,7 +80,7 @@ def test_mesh_data_does_not_write_files(system, tmp_path, monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
-def test_krn_script_translates_regional_materials(system):
+def test_krn_script_translates_multiple_materials(system):
     """Material translation preserves region-dependent parameters."""
     table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
 
