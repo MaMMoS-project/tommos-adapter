@@ -194,7 +194,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
-    assert "size = 1.0000000000000001e-09" in p2_text
+    assert "size = 1e-09" in p2_text
     saved_initial = pv.read(tmp_path / "m0.vtu")
     np.testing.assert_array_equal(saved_initial.points, input_points)
     np.testing.assert_array_equal(system.m.points, input_points)
@@ -247,7 +247,6 @@ def test_call_passes_progress_information():
 def _write_tommos_output(state, output_file, magnetization):
     """Write a minimal VTU file matching TOMMOS output."""
     output_state = state.copy()
-    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
     output_state.point_data["U"] = np.zeros(state.n_points)
@@ -313,7 +312,7 @@ def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
-    points = np.vstack([state.points / ta.scripts.DEFAULT_MESH_UNIT, airbox_points]).astype(np.float32)
+    points = np.vstack([state.points, airbox_points]).astype(np.float32)
     magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
     connectivity = np.vstack([state.cell_connectivity.reshape(-1, 4), np.arange(4) + state.n_points])
     order = np.random.default_rng(1).permutation(len(points))
@@ -356,7 +355,6 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
     magnetization_before_read = state.point_data["m"].copy()
 
     output_state = state.copy()
-    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
     if invalid_output == "missing_m":
         output_state.point_data.remove("m")
         error_message = "does not contain point data 'm'"

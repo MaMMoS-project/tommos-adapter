@@ -31,6 +31,7 @@ def system():
     grid.cell_data["Ms"] = np.array([1e6, 0.5e6])
     grid.field_data["mat_ids"] = np.array([10, 20])
     grid.field_data["mat_names"] = np.array(["hard", "soft"])
+    grid.field_data["mesh_unit_length"] = 1e-9
 
     energy = (
         mm.Exchange(A={"hard": 1e-11, "soft": 5e-12})
@@ -43,12 +44,34 @@ def system():
     return mm.System(name="two_materials", energy=energy, m=grid)
 
 
-def test_mesh_data_scales_points_and_remaps_regions(system):
-    """Mesh translation scales SI coordinates and remaps region identifiers."""
-    data = scripts.mesh_data(system, mesh_unit=1e-9)
+@pytest.mark.parametrize(
+    "mesh_unit_length, error_string",
+    [
+        ([1, 2], "Mesh unit length should be a single-valued field data"),
+        (-1e-9, "must be a positive finite number"),
+        (np.nan, "must be a positive finite number"),
+    ],
+)
+def test_wrong_mesh_unit_length(system, mesh_unit_length, error_string):
+    system.m.field_data["mesh_unit_length"] = mesh_unit_length
+    with pytest.raises(ValueError, match=error_string):
+        scripts.p2_script(
+            system,
+            hx=0,
+            hy=0,
+            hz=1,
+            hstart=-1,
+            hfinal=1,
+            hstep=0.5,
+        )
+
+
+def test_mesh_data_remaps_materials(system):
+    """Test remapping of material identifiers."""
+    data = scripts.mesh_data(system)
 
     assert data.keys() == {"knt", "ijk"}
-    assert np.allclose(data["knt"], system.m.points / 1e-9)
+    assert np.allclose(data["knt"], system.m.points)
     assert np.array_equal(data["ijk"][:, :4], np.array([[0, 1, 2, 3], [1, 2, 3, 4]]))
     assert np.array_equal(data["ijk"][:, 4], np.array([1, 2]))
 
