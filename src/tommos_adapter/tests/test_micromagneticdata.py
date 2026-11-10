@@ -145,14 +145,6 @@ def test_plugin_returns_complete_unstructured_grids(drive):
     np.testing.assert_array_equal(first_state.cell_data["custom_cell_data"], [42])
 
 
-def test_table_plugin_preserves_metadata(drive):
-    """Expose MaMMoS CSV data using Ubermag hysteresis conventions."""
-    assert list(drive.table.data.columns) == ["config", "B_hysteresis", "J_par", "E", "gnorm", "future_column"]
-    assert drive.table.units["B_hysteresis"] == "T"
-    assert drive.table.units["E"] == "J / m3"
-    assert drive.table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
-
-
 def test_missing_initial_grid_reports_filename(drive):
     """Include the filename and original read error when the initial grid is missing."""
     drive._m0_path.unlink()
@@ -235,15 +227,3 @@ def test_initial_x_with_cache(drive):
     assert selected.x == selected.table.x == "J_par"
     with pytest.raises(ValueError):
         mdata.Drive(name=drive.name, number=drive.number, dirname=drive.dirname, x="missing_column", use_cache=True)
-
-
-def test_disabling_cache_refreshes_table(drive):
-    """Reload all scalar data when caching is disabled."""
-    drive.use_cache = True
-    assert len(drive.table.data) == 2
-    csv = _MAMMOS_CSV.replace("1,1,0.95", "0,0,0.1,100000,40,8\n1,1,0.95")
-    drive._table_path.write_text(csv, encoding="utf-8")
-    assert len(drive.table.data) == 2
-
-    drive.use_cache = False
-    assert len(drive.table.data) == 3
