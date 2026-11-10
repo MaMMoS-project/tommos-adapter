@@ -36,9 +36,6 @@ def state_zero(mesh):
     """
     state = pv.read(mesh["vtu"])
     state.points *= 1e-9
-    id_array = state.get_array("mat_id")
-    state.cell_data["region_id"] = id_array
-    state.cell_data.remove("mat_id")
     m = np.zeros((state.n_points, 3), dtype=np.float32)
     state.point_data["m"] = m
     state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
@@ -56,7 +53,7 @@ def tommos_simulation(tmp_path_factory):
     )
     grid = pv.read(output_directory / "table.vtu")
     grid.points *= 1e-9
-    grid.cell_data["region_id"] = grid.cell_data.pop("mat_id")
+    grid.cell_data["mat_id"] = grid.cell_data.pop("mat_id")
     grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
     grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
 
@@ -90,9 +87,6 @@ def tiny_mesh(data_dir):
     subprocess.run(shlex.split(cmd), cwd=data_dir)
     m = pv.read(data_dir / "tiny.vtu")
     m.points *= 1e-9
-    id_array = m.get_array("mat_id")
-    m.cell_data["region_id"] = id_array
-    m.cell_data.remove("mat_id")
     m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
     m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
     return m

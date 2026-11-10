@@ -247,7 +247,6 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
     output_state.point_data["U"] = np.zeros(state.n_points)
-    output_state.cell_data["mat_id"] = state.cell_data["region_id"]
     output_state.save(output_file)
 
 
@@ -261,7 +260,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammo
     state.cell_data["region"] = np.arange(state.n_cells)
     system = mm.System(name="read_data", m=state)
     original_state = system.m
-    original_region_id = state.cell_data["region_id"].copy()
+    original_mat_id = state.cell_data["mat_id"].copy()
     original_Ms = state.cell_data["Ms"].copy()
     original_region = state.cell_data["region"].copy()
     original_point_data = state.point_data["custom_point_data"].copy()
@@ -278,7 +277,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammo
     assert system.m is original_state
     np.testing.assert_array_equal(system.m.point_data["m"], np.tile((0, 1, 0), (state.n_points, 1)))
     np.testing.assert_array_equal(system.m.point_data["custom_point_data"], original_point_data)
-    np.testing.assert_array_equal(system.m.cell_data["region_id"], original_region_id)
+    np.testing.assert_array_equal(system.m.cell_data["mat_id"], original_mat_id)
     np.testing.assert_array_equal(system.m.cell_data["Ms"], original_Ms)
     np.testing.assert_array_equal(system.m.cell_data["region"], original_region)
     assert system.table.x == "B_hysteresis"
@@ -428,7 +427,7 @@ def test_check_system_requires_unstructured_grid():
     "association, name, error_message",
     [
         ("point_data", "m", "magnetization array 'm' is missing"),
-        ("cell_data", "region_id", "material array 'region_id' is missing"),
+        ("cell_data", "mat_id", "material array 'mat_id' is missing"),
         ("cell_data", "Ms", "material array 'Ms' is missing"),
     ],
 )

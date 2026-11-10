@@ -241,7 +241,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise TypeError("TOMMOS requires system.m to be a pyvista.UnstructuredGrid.")
         if "m" not in system.m.point_data:
             raise RuntimeError("The magnetization array 'm' is missing from system.m.point_data.")
-        for name in ("region_id", "Ms"):
+        for name in ("mat_id", "Ms"):
             if name not in system.m.cell_data:
                 raise RuntimeError(f"The material array '{name}' is missing from system.m.cell_data.")
 

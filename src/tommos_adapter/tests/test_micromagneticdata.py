@@ -37,7 +37,7 @@ def _initial_state() -> pv.UnstructuredGrid:
     grid = pv.UnstructuredGrid(cells, [pv.CellType.TETRA], points)
     grid.point_data["m"] = np.tile((0.0, 0.0, 1.0), (grid.n_points, 1))
     grid.point_data["custom_point_data"] = np.arange(grid.n_points)
-    grid.cell_data["region_id"] = np.array([10])
+    grid.cell_data["mat_id"] = np.array([10])
     grid.cell_data["Ms"] = np.array([8e5])
     grid.cell_data["custom_cell_data"] = np.array([42])
     return grid
@@ -115,7 +115,7 @@ def test_plugin_reads_simulation_results(tommos_simulation):
         assert isinstance(grid, pv.UnstructuredGrid)
         np.testing.assert_array_equal(grid.points, system.m.points)
         np.testing.assert_array_equal(grid.cells, system.m.cells)
-        for name in ("region_id", "Ms"):
+        for name in ("mat_id", "Ms"):
             np.testing.assert_array_equal(grid.cell_data[name], system.m.cell_data[name])
         assert grid.point_data["m"].shape == (system.m.n_points, 3)
         assert np.all(np.isfinite(grid.point_data["m"]))
@@ -140,7 +140,7 @@ def test_plugin_returns_complete_unstructured_grids(drive):
     np.testing.assert_allclose(first_state.points, drive.m0.points)
     np.testing.assert_allclose(first_state.point_data["m"], np.tile((1.0, 0.0, 0.0), (4, 1)))
     np.testing.assert_array_equal(first_state.point_data["custom_point_data"], np.arange(4))
-    np.testing.assert_array_equal(first_state.cell_data["region_id"], [10])
+    np.testing.assert_array_equal(first_state.cell_data["mat_id"], [10])
     np.testing.assert_array_equal(first_state.cell_data["Ms"], [8e5])
     np.testing.assert_array_equal(first_state.cell_data["custom_cell_data"], [42])
 
