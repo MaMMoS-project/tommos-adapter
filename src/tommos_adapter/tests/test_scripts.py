@@ -53,6 +53,28 @@ def test_mesh_data_scales_points_and_remaps_regions(system):
     assert np.array_equal(data["ijk"][:, 4], np.array([1, 2]))
 
 
+@pytest.mark.parametrize("mesh_unit_length", [1e-9, 1e-6])
+def test_mesh_data_uses_mesh_unit_length(system, mesh_unit_length):
+    """Translate the same physical geometry from explicitly scaled coordinates."""
+    expected_points = system.m.points.copy() / 1e-9
+    system.m.points /= mesh_unit_length
+    system.m.field_data["mesh_unit_length"] = mesh_unit_length
+    input_points = system.m.points.copy()
+
+    data = scripts.mesh_data(system)
+
+    np.testing.assert_allclose(data["knt"], expected_points, rtol=1e-14, atol=0)
+    np.testing.assert_array_equal(system.m.points, input_points)
+
+
+@pytest.mark.parametrize("mesh_unit_length", [0, -1e-9, np.nan, np.inf, [1e-9, 1e-6]])
+def test_mesh_data_rejects_invalid_mesh_unit_length(system, mesh_unit_length):
+    """Reject ambiguous or nonphysical coordinate scales."""
+    system.m.field_data["mesh_unit_length"] = mesh_unit_length
+    with pytest.raises(ValueError, match="mesh_unit_length"):
+        scripts.mesh_data(system)
+
+
 def test_mesh_data_requires_region_ids(system):
     """The public translator enforces the documented region contract."""
     system.m.cell_data.remove("region_id")

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import configparser
 import copy
+import math
 import os
 import pathlib
 
 import micromagneticdata as mdata
 import pyvista as pv
 
-from tommos_adapter._mesh import _magnetization_without_airbox, _read_magnetisation_grid
+from tommos_adapter._mesh import _magnetization_without_airbox, _mesh_points, _read_magnetisation_grid
 from tommos_adapter.plugins.read_table import table_from_file
 
 
@@ -58,28 +60,46 @@ class TommosDrive(mdata.Drive):
         """Return the tommos P2 configuration."""
         return (self.drive_path / f"{self.name}.p2").read_text(encoding="utf-8")
 
-    def _read_m(self, filename: str | os.PathLike) -> pv.UnstructuredGrid:
-        """Read a complete state in SI coordinates.
+    @property
+    def _mesh_unit_length(self) -> float:
+        """Read the length of one simulation coordinate unit from the P2 file."""
+        config = configparser.ConfigParser()
+        try:
+            config.read_string(self.calculator_script)
+            mesh_unit = config.getfloat("mesh", "size")
+            if not math.isfinite(mesh_unit) or mesh_unit <= 0:
+                raise ValueError("Mesh size must be positive and finite.")
+        except (configparser.Error, ValueError) as error:
+            raise RuntimeError(f"Invalid mesh unit length in '{self.drive_path / f'{self.name}.p2'}'.") from error
+        return mesh_unit
 
-        tommos snapshots store calculator-scaled coordinates and do not retain
-        all metadata from the user grid. For snapshots, the initial state is
-        therefore used as a reference and only the computed magnetisation is
-        copied from the tommos output.
+    def _read_m(self, filename: str | os.PathLike) -> pv.UnstructuredGrid:
+        """Read a complete magnetisation grid in simulation coordinates.
+
+        The initial grid supplies the mesh and its metadata. The P2 mesh size
+        is stored in ``field_data["mesh_unit_length"]`` as metres per coordinate
+        unit. Snapshots supply the computed magnetisation.
 
         Args:
             filename: VTU state file.
 
         Returns:
-            Complete unstructured grid in SI units.
+            Complete unstructured grid with an explicit mesh unit length.
 
         Raises:
             RuntimeError: If the VTU data is missing, invalid, or incompatible
-                with the initial grid.
+                with the initial grid, or the P2 mesh size is invalid.
+            ValueError: If the initial grid has an invalid mesh unit length.
         """
         output_grid = _read_magnetisation_grid(filename)
+        mesh_unit = self._mesh_unit_length
         if pathlib.Path(filename) == self._m0_path:
-            return output_grid
-
-        reference_grid = _read_magnetisation_grid(self._m0_path)
-        reference_grid.point_data["m"] = _magnetization_without_airbox(reference_grid, output_grid)
+            reference_grid = output_grid
+        else:
+            reference_grid = _read_magnetisation_grid(self._m0_path)
+            reference_grid.point_data["m"] = _magnetization_without_airbox(
+                reference_grid, output_grid, mesh_unit=mesh_unit
+            )
+        reference_grid.points = _mesh_points(reference_grid, mesh_unit=mesh_unit)
+        reference_grid.field_data["mesh_unit_length"] = mesh_unit
         return reference_grid

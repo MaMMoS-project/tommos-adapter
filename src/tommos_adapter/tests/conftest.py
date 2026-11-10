@@ -55,7 +55,7 @@ def tommos_simulation(tmp_path_factory):
         check=True,
     )
     grid = pv.read(output_directory / "table.vtu")
-    grid.points *= 1e-9
+    grid.field_data["mesh_unit_length"] = 1e-9
     grid.cell_data["region_id"] = grid.cell_data.pop("mat_id")
     grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
     grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)

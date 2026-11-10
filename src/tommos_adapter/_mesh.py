@@ -1,11 +1,41 @@
 """Internal helpers for reading and mapping tommos magnetisation grids."""
 
 import os
+from numbers import Real
 
 import numpy as np
 import pyvista as pv
 
-from tommos_adapter.scripts import DEFAULT_MESH_UNIT
+DEFAULT_MESH_UNIT = 1e-9
+
+
+def _mesh_unit_length(grid: pv.UnstructuredGrid, *, default: float = 1.0) -> float:
+    """Return the length in metres of one grid coordinate unit.
+
+    Grids without ``field_data["mesh_unit_length"]`` use ``default``.
+    The default value of one preserves support for existing SI grids.
+    """
+    values = np.asarray(grid.field_data.get("mesh_unit_length", [default])).ravel()
+    if (
+        values.size != 1
+        or not isinstance(values[0], Real)
+        or isinstance(values[0], (bool, np.bool_))
+        or not np.isfinite(values[0])
+        or values[0] <= 0
+    ):
+        raise ValueError("field_data['mesh_unit_length'] must contain one positive finite length in metres.")
+    return float(values[0])
+
+
+def _mesh_points(grid: pv.UnstructuredGrid, *, mesh_unit: float) -> np.ndarray:
+    """Return grid coordinates expressed in the requested mesh unit."""
+    points = np.asarray(grid.points, dtype=np.float64)
+    if not np.all(np.isfinite(points)):
+        raise ValueError("Grid points must contain only finite values.")
+    unit_length = _mesh_unit_length(grid)
+    if unit_length == mesh_unit:
+        return points
+    return points * unit_length / float(mesh_unit)
 
 
 def _read_magnetisation_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
@@ -43,10 +73,15 @@ def _read_magnetisation_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid
     return grid
 
 
-def _magnetization_without_airbox(reference: pv.UnstructuredGrid, output_state: pv.UnstructuredGrid) -> np.ndarray:
+def _magnetization_without_airbox(
+    reference: pv.UnstructuredGrid,
+    output_state: pv.UnstructuredGrid,
+    *,
+    mesh_unit: float = DEFAULT_MESH_UNIT,
+) -> np.ndarray:
     """Return output magnetization at the points of a reference mesh."""
     # Match mesh_data(): scale in float64 before tommos rounds its output to float32.
-    reference_points = np.asarray(reference.points, dtype=np.float64) / DEFAULT_MESH_UNIT
+    reference_points = _mesh_points(reference, mesh_unit=mesh_unit)
     output_points = np.asarray(output_state.points)
     # tommos writes float32 coordinates, so the reference points are rounded the same way.
     _, key = np.unique(

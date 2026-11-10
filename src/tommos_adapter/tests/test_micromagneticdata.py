@@ -28,13 +28,14 @@ def _initial_state() -> pv.UnstructuredGrid:
     points = np.array(
         [
             [0.0, 0.0, 0.0],
-            [1e-9, 0.0, 0.0],
-            [0.0, 1e-9, 0.0],
-            [0.0, 0.0, 1e-9],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
         ]
     )
     cells = np.array([4, 0, 1, 2, 3])
     grid = pv.UnstructuredGrid(cells, [pv.CellType.TETRA], points)
+    grid.field_data["mesh_unit_length"] = 1e-9
     grid.point_data["m"] = np.tile((0.0, 0.0, 1.0), (grid.n_points, 1))
     grid.point_data["custom_point_data"] = np.arange(grid.n_points)
     grid.cell_data["region_id"] = np.array([10])
@@ -43,8 +44,8 @@ def _initial_state() -> pv.UnstructuredGrid:
     return grid
 
 
-def _write_snapshot(reference: pv.UnstructuredGrid, filename, magnetisation) -> None:
-    reference_points = scripts.mesh_data(mm.System(name=_SYSTEM_NAME, m=reference))["knt"]
+def _write_snapshot(reference: pv.UnstructuredGrid, filename, magnetisation, *, mesh_unit: float) -> None:
+    reference_points = scripts.mesh_data(mm.System(name=_SYSTEM_NAME, m=reference), mesh_unit=mesh_unit)["knt"]
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
     points = np.vstack([reference_points, airbox_points]).astype(np.float32)
     output_m = np.vstack([np.tile(magnetisation, (reference.n_points, 1)), np.zeros((len(airbox_points), 3))]).astype(
@@ -58,7 +59,7 @@ def _write_snapshot(reference: pv.UnstructuredGrid, filename, magnetisation) -> 
     state.save(filename)
 
 
-def _write_drive(dirname) -> None:
+def _write_drive(dirname, *, mesh_unit_length: float = 1e-9) -> None:
     drive_path = dirname / _SYSTEM_NAME / "drive-0"
     output_path = drive_path / f"hyst_{_SYSTEM_NAME}"
     output_path.mkdir(parents=True)
@@ -73,13 +74,20 @@ def _write_drive(dirname) -> None:
         ),
         encoding="utf-8",
     )
-    (drive_path / f"{_SYSTEM_NAME}.p2").write_text("[field]\nhstart = -1\nhfinal = 1\n", encoding="utf-8")
+    (drive_path / f"{_SYSTEM_NAME}.p2").write_text(
+        f"[mesh]\nsize = {mesh_unit_length}\n\n[field]\nhstart = -1\nhfinal = 1\n", encoding="utf-8"
+    )
     (output_path / "mammos_hysteresis.csv").write_text(_MAMMOS_CSV, encoding="utf-8")
 
     initial = _initial_state()
+    initial.field_data["mesh_unit_length"] = mesh_unit_length
     initial.save(drive_path / "m0.vtu")
-    _write_snapshot(initial, output_path / "state_cfg00000_B-1.0000e+00T.vtu", (1.0, 0.0, 0.0))
-    _write_snapshot(initial, output_path / "state_cfg00001_B+1.0000e+00T.vtu", (0.0, 1.0, 0.0))
+    _write_snapshot(
+        initial, output_path / "state_cfg00000_B-1.0000e+00T.vtu", (1.0, 0.0, 0.0), mesh_unit=mesh_unit_length
+    )
+    _write_snapshot(
+        initial, output_path / "state_cfg00001_B+1.0000e+00T.vtu", (0.0, 1.0, 0.0), mesh_unit=mesh_unit_length
+    )
 
 
 @pytest.fixture
@@ -119,6 +127,7 @@ def test_plugin_reads_simulation_results(drive, tommos_simulation):
     assert len(output_grids) == 2
     for grid in [initial_grid, *output_grids]:
         assert isinstance(grid, pv.UnstructuredGrid)
+        assert grid.field_data["mesh_unit_length"][0] == 1e-9
         np.testing.assert_array_equal(grid.points, system.m.points)
         np.testing.assert_array_equal(grid.cells, system.m.cells)
         for name in ("region_id", "Ms"):
@@ -126,6 +135,8 @@ def test_plugin_reads_simulation_results(drive, tommos_simulation):
         assert grid.point_data["m"].shape == (system.m.n_points, 3)
         assert np.all(np.isfinite(grid.point_data["m"]))
     np.testing.assert_array_equal(output_grids[-1].point_data["m"], system.m.point_data["m"])
+    reloaded_mesh = scripts.mesh_data(mm.System(name="reloaded", m=initial_grid))
+    np.testing.assert_array_equal(reloaded_mesh["knt"], initial_grid.points)
 
     table = drive.table
     assert drive.n == len(table.data) == 2
@@ -137,19 +148,49 @@ def test_plugin_reads_simulation_results(drive, tommos_simulation):
 
 
 def test_plugin_returns_complete_unstructured_grids(synthetic_drive):
-    """Drop the airbox while restoring SI coordinates and initial-grid metadata."""
+    """Drop the airbox while retaining mesh coordinates, unit length, and metadata."""
     drive = synthetic_drive
     assert isinstance(drive, TommosDrive)
     assert isinstance(drive.m0, pv.UnstructuredGrid)
     np.testing.assert_allclose(drive.m0.points, _initial_state().points)
 
     first_state = drive[0]
+    assert first_state.field_data["mesh_unit_length"][0] == 1e-9
     np.testing.assert_allclose(first_state.points, drive.m0.points)
     np.testing.assert_allclose(first_state.point_data["m"], np.tile((1.0, 0.0, 0.0), (4, 1)))
     np.testing.assert_array_equal(first_state.point_data["custom_point_data"], np.arange(4))
     np.testing.assert_array_equal(first_state.cell_data["region_id"], [10])
     np.testing.assert_array_equal(first_state.cell_data["Ms"], [8e5])
     np.testing.assert_array_equal(first_state.cell_data["custom_cell_data"], [42])
+
+
+@pytest.mark.parametrize("initial_unit_length", [None, 1e-9, 1e-6])
+def test_plugin_uses_configured_mesh_unit(tmp_path, initial_unit_length):
+    """Read a non-default P2 mesh size, including initial grids saved in other units."""
+    _write_drive(tmp_path, mesh_unit_length=1e-6)
+    drive = mdata.Data(name=_SYSTEM_NAME, dirname=tmp_path)[0]
+    initial = pv.read(drive._m0_path)
+    if initial_unit_length is None:
+        initial.points *= 1e-6
+        del initial.field_data["mesh_unit_length"]
+    else:
+        initial.points *= 1e-6 / initial_unit_length
+        initial.field_data["mesh_unit_length"] = initial_unit_length
+    initial.save(drive._m0_path)
+
+    for grid in [drive.m0, *drive]:
+        np.testing.assert_allclose(grid.points, _initial_state().points, rtol=1e-14, atol=0)
+        assert grid.field_data["mesh_unit_length"][0] == 1e-6
+    np.testing.assert_array_equal(drive[1].point_data["m"], np.tile((0, 1, 0), (4, 1)))
+
+
+@pytest.mark.parametrize("mesh_size", ["0", "nan", None])
+def test_plugin_rejects_invalid_mesh_unit(synthetic_drive, mesh_size):
+    """Reject missing or invalid P2 scales instead of guessing the physical size."""
+    config = "[mesh]\n" if mesh_size is None else f"[mesh]\nsize = {mesh_size}\n"
+    (synthetic_drive.drive_path / f"{synthetic_drive.name}.p2").write_text(config, encoding="utf-8")
+    with pytest.raises(RuntimeError, match="Invalid mesh unit length"):
+        _ = synthetic_drive.m0
 
 
 def test_missing_initial_grid_reports_filename(synthetic_drive):

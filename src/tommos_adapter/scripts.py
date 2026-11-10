@@ -9,6 +9,8 @@ The provisional unstructured-grid contract is:
 * ``point_data["m"]`` contains the nodal magnetisation directions.
 * ``cell_data["region_id"]`` contains one region identifier per tetrahedron.
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
+* ``field_data["mesh_unit_length"]`` gives the length of one coordinate unit
+  in metres. Grids without this entry are interpreted as SI grids.
 * ``field_data["region_ids"]`` and ``field_data["region_names"]`` optionally
   map numeric region identifiers to names used in parameter dictionaries.
 
@@ -27,7 +29,7 @@ import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
 
-DEFAULT_MESH_UNIT = 1e-9
+from tommos_adapter._mesh import DEFAULT_MESH_UNIT, _mesh_points
 
 
 @dataclass(frozen=True)
@@ -47,9 +49,10 @@ def mesh_data(
 ) -> dict[str, np.ndarray]:
     """Return TOMMOS ``knt`` and ``ijk`` arrays for a system.
 
-    Coordinates in an Ubermag model are assumed to be in metres.  ``knt`` is
-    scaled by ``mesh_unit`` because TOMMOS stores dimensionless mesh
-    coordinates and records the physical unit in the ``.p2`` file.
+    ``field_data["mesh_unit_length"]`` specifies the length in metres of one
+    grid coordinate unit. Coordinates without this entry are interpreted as
+    metres. ``knt`` is expressed in ``mesh_unit``, which TOMMOS records in
+    the ``.p2`` file.
 
     Args:
         system: Micromagnetic system with a PyVista unstructured grid as
@@ -76,12 +79,10 @@ def mesh_data(
     for region in regions:
         material_ids[source_ids == region.source_id] = region.material_id
 
-    points = np.asarray(grid.points, dtype=np.float64)
-    if not np.all(np.isfinite(points)):
-        raise ValueError("Grid points must contain only finite values.")
+    points = _mesh_points(grid, mesh_unit=mesh_unit)
 
     ijk = np.column_stack((connectivity, material_ids)).astype(np.int64, copy=False)
-    return {"knt": points / float(mesh_unit), "ijk": ijk}
+    return {"knt": points, "ijk": ijk}
 
 
 def initial_magnetisation(system: mm.System, *, key: str = "m") -> np.ndarray:

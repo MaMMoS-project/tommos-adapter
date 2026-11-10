@@ -16,7 +16,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
-from tommos_adapter._mesh import _magnetization_without_airbox, _read_magnetisation_grid
+from tommos_adapter._mesh import _magnetization_without_airbox, _mesh_unit_length, _read_magnetisation_grid
 from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
@@ -106,9 +106,14 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
-        mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
+        mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
+        mesh = scripts.mesh_data(system, mesh_unit=mesh_unit)
         np.savez(f"{system.name}.npz", **mesh)
-        system.m.save("m0.vtu")
+        # Save simulation coordinates without changing the user's grid.
+        initial_grid = system.m.copy()
+        initial_grid.points = mesh["knt"]
+        initial_grid.field_data["mesh_unit_length"] = mesh_unit
+        initial_grid.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
@@ -116,7 +121,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Path(f"{system.name}.p2").write_text(
             scripts.p2_script(
                 system,
-                mesh_unit=scripts.DEFAULT_MESH_UNIT,
+                mesh_unit=mesh_unit,
                 **p2_arguments,
             ),
             encoding="utf-8",
@@ -179,7 +184,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
         output_grid = _read_magnetisation_grid(last_output_file)
-        magnetization = _magnetization_without_airbox(system.m, output_grid)
+        mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
+        magnetization = _magnetization_without_airbox(system.m, output_grid, mesh_unit=mesh_unit)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:
@@ -265,7 +271,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"`tommos` supports only T=0 K. Given temperature: {system.T} K.")
 
         try:
-            scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
+            mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
+            scripts.mesh_data(system, mesh_unit=mesh_unit)
             scripts.krn_data(system)
         except (TypeError, ValueError) as error:
             raise RuntimeError(f"System cannot be translated to TOMMOS input: {error}") from error
