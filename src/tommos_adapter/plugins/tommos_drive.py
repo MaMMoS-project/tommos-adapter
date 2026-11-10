@@ -14,7 +14,12 @@ from tommos_adapter._mesh import _magnetization_at_reference_points, _read_magne
 class TommosDrive(mdata.Drive):
     """Provide access to tommos simulation results."""
 
-    @mdata.AbstractDrive.x.setter
+    @property
+    def x(self) -> str:
+        """Independent table variable name."""
+        return self._x
+
+    @x.setter
     def x(self, value: str | None) -> None:
         """Set the independent table variable.
 
