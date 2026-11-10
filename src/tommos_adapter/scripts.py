@@ -11,9 +11,13 @@ The provisional unstructured-grid contract is:
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
 * ``field_data["mat_ids"]`` and ``field_data["mat_names"]`` optionally
   map numeric material identifiers to names used in parameter dictionaries.
+* ``field_data["mesh_unit_lenght"]`` optional mesh unit length.
 
 TOMMOS material identifiers are contiguous and one-based. Source material
 identifiers are therefore remapped when mesh data are generated.
+
+Terms `material` and `mat` do not indicate necessarily different materials,
+but rather different regions with potentially different magnetic parameters.
 """
 
 from __future__ import annotations
