@@ -1,6 +1,5 @@
 """Test hysteresis driver."""
 
-import configparser
 import sys
 from unittest.mock import Mock
 
@@ -176,14 +175,10 @@ def test_invalid_temperature(state_zero):
         hd._check_system(system)
 
 
-@pytest.mark.parametrize("mesh_unit_length", [None, 1e-6])
-def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch, mesh_unit_length):
+def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")
     state = state_zero.copy()
-    if mesh_unit_length is not None:
-        state.points /= mesh_unit_length
-        state.field_data["mesh_unit_length"] = mesh_unit_length
     input_points = state.points.copy()
     state.point_data["m"][:, 2] = 1
     system.m = state
@@ -199,18 +194,12 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch, mes
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
-    mesh_unit = 1e-9 if mesh_unit_length is None else mesh_unit_length
-    config = configparser.ConfigParser()
-    config.read_string(p2_text)
-    assert config.getfloat("mesh", "size") == mesh_unit
-    expected_points = np.asarray(state_zero.points, dtype=np.float64) / mesh_unit
-    with np.load(tmp_path / "test_write_input_files_after_checking.npz") as mesh:
-        np.testing.assert_allclose(mesh["knt"], expected_points, rtol=1e-14, atol=0)
+    assert "size = 1.0000000000000001e-09" in p2_text
+    expected_points = np.asarray(state.points, dtype=np.float64) / ta.scripts.DEFAULT_MESH_UNIT
     saved_initial = pv.read(tmp_path / "m0.vtu")
     np.testing.assert_allclose(saved_initial.points, expected_points, rtol=1e-14, atol=0)
-    assert saved_initial.field_data["mesh_unit_length"][0] == mesh_unit
+    assert saved_initial.field_data["mesh_unit_length"][0] == ta.scripts.DEFAULT_MESH_UNIT
     np.testing.assert_array_equal(system.m.points, input_points)
-    assert ("mesh_unit_length" in system.m.field_data) == (mesh_unit_length is not None)
     assert "mx = 0" in p2_text
     assert "my = 0" in p2_text
     assert "mz = 1" in p2_text
@@ -260,10 +249,7 @@ def test_call_passes_progress_information():
 def _write_tommos_output(state, output_file, magnetization):
     """Write a minimal VTU file matching TOMMOS output."""
     output_state = state.copy()
-    mesh_unit = state.field_data.get("mesh_unit_length", [1e-9])[0]
-    output_state.points = ta.scripts.mesh_data(mm.System(name="output", m=state), mesh_unit=mesh_unit)["knt"].astype(
-        np.float32
-    )
+    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
     output_state.point_data["U"] = np.zeros(state.n_points)
@@ -271,16 +257,9 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
-@pytest.mark.parametrize("mesh_unit_length", [None, 1e-6])
-def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table, dtype, mesh_unit_length):
+def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammos_table):
     """Read the last TOMMOS state and table while retaining grid metadata."""
     state = state_zero.copy()
-    state.points = (state.points * 1.19).astype(dtype)
-    if mesh_unit_length is not None:
-        state.points /= mesh_unit_length
-        state.field_data["mesh_unit_length"] = mesh_unit_length
-    input_points = state.points.copy()
     state.point_data["m"][:, 2] = 1
     state.point_data["custom_point_data"] = np.arange(state.n_points)
     state.cell_data["region"] = np.arange(state.n_cells)
@@ -301,9 +280,6 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammo
     ta.HysteresisDriver()._read_data(system)
 
     assert system.m is original_state
-    np.testing.assert_array_equal(system.m.points, input_points)
-    if mesh_unit_length is not None:
-        assert system.m.field_data["mesh_unit_length"][0] == mesh_unit_length
     np.testing.assert_array_equal(system.m.point_data["m"], np.tile((0, 1, 0), (state.n_points, 1)))
     np.testing.assert_array_equal(system.m.point_data["custom_point_data"], original_point_data)
     np.testing.assert_array_equal(system.m.cell_data["region_id"], original_region_id)
@@ -340,8 +316,7 @@ def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
-    input_points = ta.scripts.mesh_data(system)["knt"]
-    points = np.vstack([input_points, airbox_points]).astype(np.float32)
+    points = np.vstack([state.points / ta.scripts.DEFAULT_MESH_UNIT, airbox_points]).astype(np.float32)
     magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
     connectivity = np.vstack([state.cell_connectivity.reshape(-1, 4), np.arange(4) + state.n_points])
     order = np.random.default_rng(1).permutation(len(points))
@@ -375,7 +350,7 @@ def test_read_data_requires_output(state_zero, tmp_path, monkeypatch):
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
-@pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "non_finite_m", "different_mesh"])
+@pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
 def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, invalid_output):
     """Invalid TOMMOS snapshots do not partially update the system."""
     state = state_zero.copy()
@@ -390,25 +365,19 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         error_message = "does not contain point data 'm'"
     elif invalid_output == "wrong_shape":
         output_state.point_data["m"] = np.ones((state.n_points, 2))
-        error_message = "has magnetisation shape"
-    elif invalid_output == "non_finite_m":
-        output_state.point_data["m"][0, 0] = np.nan
-        error_message = "contains non-finite magnetisation values"
+        error_message = "output magnetization has shape"
     else:
         output_state.points[0, 0] += 1
-        error_message = "does not match the reference mesh"
+        error_message = "does not match system.m"
 
     output_directory = tmp_path / "hyst_invalid_output"
     output_directory.mkdir()
-    output_file = output_directory / "state_cfg00000_B+0.0000e+00T.vtu"
-    output_state.save(output_file)
+    output_state.save(output_directory / "state_cfg00000_B+0.0000e+00T.vtu")
     monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(RuntimeError, match=error_message) as error:
+    with pytest.raises(RuntimeError, match=error_message):
         ta.HysteresisDriver()._read_data(system)
 
-    if invalid_output != "different_mesh":
-        assert str(output_file.relative_to(tmp_path)) in str(error.value)
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 

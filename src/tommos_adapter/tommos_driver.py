@@ -16,7 +16,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
-from tommos_adapter._mesh import _magnetization_without_airbox, _mesh_unit_length, _read_magnetisation_grid
+from tommos_adapter._mesh import _magnetization_at_reference_points
 from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
@@ -25,6 +25,20 @@ if TYPE_CHECKING:
     import numpy.typing
 
     import tommos_adapter
+
+
+def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
+    """Return the output magnetization at the points of ``system.m``.
+
+    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
+    coordinates of the original ones. Delete this function once tommos writes its output
+    without the airbox.
+    """
+    reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+    try:
+        return _magnetization_at_reference_points(reference_points, output_state)
+    except RuntimeError as error:
+        raise RuntimeError("Mesh in tommos output does not match system.m.") from error
 
 
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
@@ -106,13 +120,12 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
-        mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
-        mesh = scripts.mesh_data(system, mesh_unit=mesh_unit)
+        mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
         np.savez(f"{system.name}.npz", **mesh)
         # Save simulation coordinates without changing the user's grid.
         initial_grid = system.m.copy()
         initial_grid.points = mesh["knt"]
-        initial_grid.field_data["mesh_unit_length"] = mesh_unit
+        initial_grid.field_data["mesh_unit_length"] = scripts.DEFAULT_MESH_UNIT
         initial_grid.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
@@ -121,7 +134,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         Path(f"{system.name}.p2").write_text(
             scripts.p2_script(
                 system,
-                mesh_unit=mesh_unit,
+                mesh_unit=scripts.DEFAULT_MESH_UNIT,
                 **p2_arguments,
             ),
             encoding="utf-8",
@@ -183,9 +196,26 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"No tommos VTU output found in '{output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
-        output_grid = _read_magnetisation_grid(last_output_file)
-        mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
-        magnetization = _magnetization_without_airbox(system.m, output_grid, mesh_unit=mesh_unit)
+        try:
+            output_state = pv.read(last_output_file)
+        except Exception as error:
+            raise RuntimeError(f"Cannot read tommos output '{last_output_file}'.") from error
+
+        if not isinstance(output_state, pv.UnstructuredGrid):
+            raise RuntimeError(f"tommos output '{last_output_file}' is not an UnstructuredGrid.")
+        if "m" not in output_state.point_data:
+            raise RuntimeError(f"tommos output '{last_output_file}' does not contain point data 'm'.")
+
+        output_magnetization = np.asarray(output_state.point_data["m"])
+        expected_shape = (output_state.n_points, 3)
+        if output_magnetization.shape != expected_shape:
+            raise RuntimeError(
+                f"tommos output magnetization has shape {output_magnetization.shape}; expected {expected_shape}."
+            )
+        if not np.all(np.isfinite(output_magnetization)):
+            raise RuntimeError("tommos output magnetization contains non-finite values.")
+
+        magnetization = _magnetization_without_airbox(system, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:
@@ -271,8 +301,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"`tommos` supports only T=0 K. Given temperature: {system.T} K.")
 
         try:
-            mesh_unit = _mesh_unit_length(system.m, default=scripts.DEFAULT_MESH_UNIT)
-            scripts.mesh_data(system, mesh_unit=mesh_unit)
+            scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
             scripts.krn_data(system)
         except (TypeError, ValueError) as error:
             raise RuntimeError(f"System cannot be translated to TOMMOS input: {error}") from error
