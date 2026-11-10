@@ -83,16 +83,16 @@ def _write_drive(dirname) -> None:
 
 
 @pytest.fixture
-def drive(tmp_path):
-    """Return a synthetic tommos drive discovered through its entry point."""
-    _write_drive(tmp_path)
-    return mdata.Data(name=_SYSTEM_NAME, dirname=tmp_path)[0]
+def drive(tommos_simulation):
+    """Return a fresh drive reading the shared tommos simulation results."""
+    system, output_directory = tommos_simulation
+    return mdata.Data(name=system.name, dirname=output_directory)[0]
 
 
 @pytest.fixture
 def drive_with_reference(drive):
     """Return the shared micromagneticdata test references."""
-    return drive, ("B_hysteresis", "J_par", "hstart = -1")
+    return drive, ("B_hysteresis", "J_par", "[initial state]")
 
 
 @pytest.fixture
@@ -101,10 +101,16 @@ def expected_field_type():
     return pv.UnstructuredGrid
 
 
-def test_plugin_reads_simulation_results(tommos_simulation):
+@pytest.fixture
+def synthetic_drive(tmp_path):
+    """Return synthetic results for targeted grid, snapshot, and file-error tests."""
+    _write_drive(tmp_path)
+    return mdata.Data(name=_SYSTEM_NAME, dirname=tmp_path)[0]
+
+
+def test_plugin_reads_simulation_results(drive, tommos_simulation):
     """Read actual calculator output through the registered data plugin."""
-    system, output_directory = tommos_simulation
-    drive = mdata.Data(name=system.name, dirname=output_directory)[0]
+    system, _ = tommos_simulation
     assert isinstance(drive, TommosDrive)
 
     initial_grid = drive.m0
@@ -130,8 +136,9 @@ def test_plugin_reads_simulation_results(tommos_simulation):
     assert "[initial state]" in drive.calculator_script
 
 
-def test_plugin_returns_complete_unstructured_grids(drive):
+def test_plugin_returns_complete_unstructured_grids(synthetic_drive):
     """Drop the airbox while restoring SI coordinates and initial-grid metadata."""
+    drive = synthetic_drive
     assert isinstance(drive, TommosDrive)
     assert isinstance(drive.m0, pv.UnstructuredGrid)
     np.testing.assert_allclose(drive.m0.points, _initial_state().points)
@@ -145,8 +152,9 @@ def test_plugin_returns_complete_unstructured_grids(drive):
     np.testing.assert_array_equal(first_state.cell_data["custom_cell_data"], [42])
 
 
-def test_missing_initial_grid_reports_filename(drive):
+def test_missing_initial_grid_reports_filename(synthetic_drive):
     """Include the filename and original read error when the initial grid is missing."""
+    drive = synthetic_drive
     drive._m0_path.unlink()
     with pytest.raises(RuntimeError, match="Cannot read tommos magnetisation grid") as error:
         _ = drive.m0
@@ -155,8 +163,9 @@ def test_missing_initial_grid_reports_filename(drive):
 
 
 @pytest.fixture
-def sparse_drive(drive):
+def sparse_drive(synthetic_drive):
     """Include a field step without a new snapshot, as produced with ``mstep``."""
+    drive = synthetic_drive
     csv = _MAMMOS_CSV.replace("1,1,0.95", "0,0,0.1,100000,40,8\n1,1,0.95")
     drive._table_path.write_text(csv, encoding="utf-8")
     return drive
