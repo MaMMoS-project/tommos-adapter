@@ -16,6 +16,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
+from tommos_adapter._mesh import _magnetization_at_reference_points, _read_magnetization_grid
 from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
@@ -24,26 +25,6 @@ if TYPE_CHECKING:
     import numpy.typing
 
     import tommos_adapter
-
-
-def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
-    """Return the output magnetization at the points of ``system.m``.
-
-    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
-    coordinates of the original ones. Delete this function once tommos writes its output
-    without the airbox.
-    """
-    knt = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
-    output_points = np.asarray(output_state.points)
-    # tommos writes float32 coordinates, so the input points are rounded the same way.
-    _, key = np.unique(np.vstack([knt.astype(output_points.dtype), output_points]), axis=0, return_inverse=True)
-    key = key.ravel()
-    output_index = np.full(key.max() + 1, -1)
-    output_index[key[len(knt) :]] = np.arange(len(output_points))
-    point_map = output_index[key[: len(knt)]]
-    if np.any(point_map < 0) or len(np.unique(point_map)) != len(knt):
-        raise RuntimeError("Mesh in tommos output does not match system.m.")
-    return np.asarray(output_state.point_data["m"])[point_map]
 
 
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
@@ -127,6 +108,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
         np.savez(f"{system.name}.npz", **mesh)
+        system.m.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
@@ -196,26 +178,10 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"No tommos VTU output found in '{output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
-        try:
-            output_state = pv.read(last_output_file)
-        except Exception as error:
-            raise RuntimeError(f"Cannot read tommos output '{last_output_file}'.") from error
+        output_state = _read_magnetization_grid(last_output_file)
 
-        if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"tommos output '{last_output_file}' is not an UnstructuredGrid.")
-        if "m" not in output_state.point_data:
-            raise RuntimeError(f"tommos output '{last_output_file}' does not contain point data 'm'.")
-
-        output_magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (output_state.n_points, 3)
-        if output_magnetization.shape != expected_shape:
-            raise RuntimeError(
-                f"tommos output magnetization has shape {output_magnetization.shape}; expected {expected_shape}."
-            )
-        if not np.all(np.isfinite(output_magnetization)):
-            raise RuntimeError("tommos output magnetization contains non-finite values.")
-
-        magnetization = _magnetization_without_airbox(system, output_state)
+        reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+        magnetization = _magnetization_at_reference_points(reference_points, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:

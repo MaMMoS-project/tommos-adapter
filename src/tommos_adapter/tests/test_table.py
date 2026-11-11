@@ -1,15 +1,10 @@
 """Test TOMMOS table output and reusable Ubermag table behaviour."""
 
-import subprocess
-
-import micromagneticmodel as mm
 import numpy as np
 import pytest
-import pyvista as pv
 from ubermagtable.testing import table as table_testing
 from ubermagtable.testing.table import *  # noqa: F403
 
-from tommos_adapter import HysteresisDriver
 from tommos_adapter.plugins import table_from_file
 
 test_table_units = pytest.mark.skip(
@@ -28,34 +23,9 @@ test_table_mpl = pytest.mark.skip(
 
 
 @pytest.fixture(scope="session")
-def tommos_table_file(tmp_path_factory):
-    """Run a minimal TOMMOS simulation and return its table output."""
-    output_directory = tmp_path_factory.mktemp("tommos_table")
-    subprocess.run(
-        ["tommos", "mesh", "--geom", "box", "--extent", "2,2,2", "--h", "2", "--out-name", "table"],
-        cwd=output_directory,
-        check=True,
-    )
-    state = pv.read(output_directory / "table.vtu")
-    state.points *= 1e-9
-    state.cell_data["region_id"] = state.cell_data.pop("mat_id")
-    state.point_data["m"] = np.tile((1, 0, 0), (state.n_points, 1)).astype(np.float32)
-    state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
-
-    system = mm.System(name="table_output")
-    system.m = state
-    system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(1, 0, 0)) + mm.Demag()
-
-    HysteresisDriver().drive(
-        system,
-        dirname=output_directory,
-        append=False,
-        verbose=0,
-        h_direction=(0, 0, 1),
-        h_start=0.5,
-        h_final=1,
-        n=2,
-    )
+def tommos_table_file(tommos_simulation):
+    """Return the table from the shared tommos simulation."""
+    system, output_directory = tommos_simulation
     return output_directory / system.name / "drive-0" / f"hyst_{system.name}" / "mammos_hysteresis.csv"
 
 

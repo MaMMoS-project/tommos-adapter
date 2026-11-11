@@ -179,6 +179,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")
     state = state_zero.copy()
+    input_points = state.points.copy()
     state.point_data["m"][:, 2] = 1
     system.m = state
     system.energy = mm.Demag()
@@ -188,11 +189,15 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
     assert (tmp_path / "test_write_input_files_after_checking.npz").is_file()
+    assert (tmp_path / "m0.vtu").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
     assert "size = 1.0000000000000001e-09" in p2_text
+    saved_initial = pv.read(tmp_path / "m0.vtu")
+    np.testing.assert_array_equal(saved_initial.points, input_points)
+    np.testing.assert_array_equal(system.m.points, input_points)
     assert "mx = 0" in p2_text
     assert "my = 0" in p2_text
     assert "mz = 1" in p2_text
@@ -358,10 +363,10 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         error_message = "does not contain point data 'm'"
     elif invalid_output == "wrong_shape":
         output_state.point_data["m"] = np.ones((state.n_points, 2))
-        error_message = "output magnetization has shape"
+        error_message = "has magnetization shape"
     else:
         output_state.points[0, 0] += 1
-        error_message = "does not match system.m"
+        error_message = "does not match the reference mesh"
 
     output_directory = tmp_path / "hyst_invalid_output"
     output_directory.mkdir()

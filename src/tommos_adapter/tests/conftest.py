@@ -9,6 +9,8 @@ import numpy as np
 import pytest
 import pyvista as pv
 
+from tommos_adapter import HysteresisDriver
+
 
 @pytest.fixture(scope="session")
 def data_dir(tmp_path_factory):
@@ -41,6 +43,36 @@ def state_zero(mesh):
     state.point_data["m"] = m
     state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
     return state
+
+
+@pytest.fixture(scope="session")
+def tommos_simulation(tmp_path_factory):
+    """Run a small two-step tommos simulation once per test session."""
+    output_directory = tmp_path_factory.mktemp("tommos_simulation")
+    subprocess.run(
+        ["tommos", "mesh", "--geom", "box", "--extent", "2,2,2", "--h", "2", "--out-name", "table"],
+        cwd=output_directory,
+        check=True,
+    )
+    grid = pv.read(output_directory / "table.vtu")
+    grid.points *= 1e-9
+    grid.cell_data["region_id"] = grid.cell_data.pop("mat_id")
+    grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
+    grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
+
+    system = mm.System(name="table_output", m=grid)
+    system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(1, 0, 0)) + mm.Demag()
+    HysteresisDriver().drive(
+        system,
+        dirname=output_directory,
+        append=False,
+        verbose=0,
+        h_direction=(0, 0, 1),
+        h_start=0.5,
+        h_final=1,
+        n=2,
+    )
+    return system, output_directory
 
 
 @pytest.fixture(scope="session")
