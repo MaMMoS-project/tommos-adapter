@@ -5,6 +5,7 @@ import importlib.metadata
 import pytest
 
 from . import scripts as scripts
+from ._mesh import create_mesh as create_mesh
 from .tommos_driver import HysteresisDriver as HysteresisDriver
 from .tommos_runner import TommosRunner as TommosRunner
 
