@@ -363,7 +363,7 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         error_message = "does not contain point data 'm'"
     elif invalid_output == "wrong_shape":
         output_state.point_data["m"] = np.ones((state.n_points, 2))
-        error_message = "output magnetization has shape"
+        error_message = "has magnetization shape"
     else:
         output_state.points[0, 0] += 1
         error_message = "does not match the reference mesh"

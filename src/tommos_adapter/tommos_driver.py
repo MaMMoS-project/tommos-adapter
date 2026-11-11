@@ -16,7 +16,7 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
-from tommos_adapter._mesh import _magnetization_at_reference_points
+from tommos_adapter._mesh import _magnetization_at_reference_points, _read_magnetization_grid
 from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
@@ -178,24 +178,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"No tommos VTU output found in '{output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
-        try:
-            output_state = pv.read(last_output_file)
-        except Exception as error:
-            raise RuntimeError(f"Cannot read tommos output '{last_output_file}'.") from error
-
-        if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"tommos output '{last_output_file}' is not an UnstructuredGrid.")
-        if "m" not in output_state.point_data:
-            raise RuntimeError(f"tommos output '{last_output_file}' does not contain point data 'm'.")
-
-        output_magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (output_state.n_points, 3)
-        if output_magnetization.shape != expected_shape:
-            raise RuntimeError(
-                f"tommos output magnetization has shape {output_magnetization.shape}; expected {expected_shape}."
-            )
-        if not np.all(np.isfinite(output_magnetization)):
-            raise RuntimeError("tommos output magnetization contains non-finite values.")
+        output_state = _read_magnetization_grid(last_output_file)
 
         reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
         magnetization = _magnetization_at_reference_points(reference_points, output_state)
