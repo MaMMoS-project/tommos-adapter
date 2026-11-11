@@ -107,6 +107,7 @@ def test_krn_script_translates_default_materials(system):
 
     table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
 
+    # KRN columns are theta, phi, K1, K2, Js, and A.
     assert table[:, 0] == pytest.approx((0.0, np.pi / 2))
     assert table[:, 2] == pytest.approx((1e6, 2e5))
     assert table[:, 5] == pytest.approx((1e-11, 5e-12))
