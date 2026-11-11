@@ -46,7 +46,6 @@ def _magnetization_at_reference_points(
     output_state: pv.UnstructuredGrid,
 ) -> np.ndarray:
     """Return output magnetization at the requested reference points."""
-    reference_points = np.asarray(reference_points, dtype=np.float64)
     output_points = np.asarray(output_state.points)
     # tommos writes float32 coordinates, so the reference points are rounded the same way.
     _, key = np.unique(
@@ -60,4 +59,4 @@ def _magnetization_at_reference_points(
     point_map = output_index[key[: len(reference_points)]]
     if np.any(point_map < 0) or len(np.unique(point_map)) != len(reference_points):
         raise RuntimeError("Mesh in tommos output does not match the reference mesh.")
-    return np.asarray(output_state.point_data["m"])[point_map]
+    return np.asarray(output_state.point_data["m"][point_map])
