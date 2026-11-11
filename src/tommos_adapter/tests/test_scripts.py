@@ -94,6 +94,25 @@ def test_krn_script_translates_regional_materials(system):
     assert table[:, 5] == pytest.approx((1e-11, 5e-12))
 
 
+def test_krn_script_translates_default_materials(system):
+    """Explicit regions override Ubermag-style default material values."""
+    system.energy = (
+        mm.Exchange(A={"default": 1e-11, "soft": 5e-12})
+        + mm.UniaxialAnisotropy(
+            K={"default": 1e6, "soft": 2e5},
+            u={"default": (0, 0, 1), "soft": (1, 0, 0)},
+        )
+        + mm.Demag()
+    )
+
+    table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
+
+    # KRN columns are theta, phi, K1, K2, Js, and A.
+    assert table[:, 0] == pytest.approx((0.0, np.pi / 2))
+    assert table[:, 2] == pytest.approx((1e6, 2e5))
+    assert table[:, 5] == pytest.approx((1e-11, 5e-12))
+
+
 def test_krn_script_matches_known_example(system):
     """KRN translation matches a known TOMMOS input file."""
     expected = (
