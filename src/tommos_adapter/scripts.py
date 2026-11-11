@@ -443,11 +443,12 @@ def _energy_terms(system: mm.System) -> dict[type, object]:
 
 def _scalar_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
-        missing = sorted(set(region_names) - set(value))
-        extra = sorted(set(value) - set(region_names))
+        keys = set(value)
+        missing = [] if "default" in value else sorted(set(region_names) - keys)
+        extra = sorted(keys - set(region_names) - {"default"})
         if missing or extra:
             raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] for name in region_names]
+        values = [value[name] if name in value else value["default"] for name in region_names]
     else:
         values = [value] * len(region_names)
 
@@ -462,11 +463,12 @@ def _scalar_values(value: object, region_names: list[str], *, parameter: str) ->
 
 def _vector_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
-        missing = sorted(set(region_names) - set(value))
-        extra = sorted(set(value) - set(region_names))
+        keys = set(value)
+        missing = [] if "default" in value else sorted(set(region_names) - keys)
+        extra = sorted(keys - set(region_names) - {"default"})
         if missing or extra:
             raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] for name in region_names]
+        values = [value[name] if name in value else value["default"] for name in region_names]
     else:
         values = [value] * len(region_names)
 
