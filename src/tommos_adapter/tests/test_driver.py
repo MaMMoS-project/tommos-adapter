@@ -366,7 +366,7 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
         error_message = "output magnetization has shape"
     else:
         output_state.points[0, 0] += 1
-        error_message = "does not match system.m"
+        error_message = "does not match the reference mesh"
 
     output_directory = tmp_path / "hyst_invalid_output"
     output_directory.mkdir()

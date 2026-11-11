@@ -27,20 +27,6 @@ if TYPE_CHECKING:
     import tommos_adapter
 
 
-def _magnetization_without_airbox(system: micromagneticmodel.System, output_state: pv.UnstructuredGrid) -> np.ndarray:
-    """Return the output magnetization at the points of ``system.m``.
-
-    With ``--add-shell`` tommos adds an airbox and reorders the points, but keeps the
-    coordinates of the original ones. Delete this function once tommos writes its output
-    without the airbox.
-    """
-    reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
-    try:
-        return _magnetization_at_reference_points(reference_points, output_state)
-    except RuntimeError as error:
-        raise RuntimeError("Mesh in tommos output does not match system.m.") from error
-
-
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
@@ -211,7 +197,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if not np.all(np.isfinite(output_magnetization)):
             raise RuntimeError("tommos output magnetization contains non-finite values.")
 
-        magnetization = _magnetization_without_airbox(system, output_state)
+        reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+        magnetization = _magnetization_at_reference_points(reference_points, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
         try:
