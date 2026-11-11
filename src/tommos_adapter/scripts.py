@@ -9,9 +9,9 @@ The provisional unstructured-grid contract is:
 * ``point_data["m"]`` contains the nodal magnetisation directions.
 * ``cell_data["mat_id"]`` contains one material identifier per tetrahedron.
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
+* ``field_data["mesh_unit_lenght"]`` contains the mesh unit length.
 * ``field_data["mat_ids"]`` and ``field_data["mat_names"]`` optionally
   map numeric material identifiers to names used in parameter dictionaries.
-* ``field_data["mesh_unit_lenght"]`` optional mesh unit length.
 
 TOMMOS material identifiers are contiguous and one-based. Source material
 identifiers are therefore remapped when mesh data are generated.
@@ -290,14 +290,17 @@ def p2_script(
         )
 
     lines = ["[mesh]"]
-    if "mesh_unit_length" in system.m.field_data:
-        mesh_unit_length = system.m.field_data["mesh_unit_length"]
-        if len(mesh_unit_length) != 1:
-            raise ValueError(f"Mesh unit length should be a single-valued field data. Got {mesh_unit_length}")
-        mul = mesh_unit_length[0]
-        if not isinstance(mul, Real) or not np.isfinite(mul) or mul <= 0:
-            raise ValueError(f"Mesh field data `mesh_unit_length` must be a positive finite number, got {mul!r}.")
-        lines.append(f"size = {mul}")
+
+    if "mesh_unit_length" not in system.m.field_data:
+        raise ValueError("Mesh does not have necessary field data `mesh_unit_length`.")
+    mesh_unit_length = system.m.field_data["mesh_unit_length"]
+    if len(mesh_unit_length) != 1:
+        raise ValueError(f"Mesh unit length should be a single-valued field data. Got {mesh_unit_length}")
+    mul = mesh_unit_length[0]
+    if not isinstance(mul, Real) or not np.isfinite(mul) or mul <= 0:
+        raise ValueError(f"Mesh field data `mesh_unit_length` must be a positive finite number, got {mul!r}.")
+    lines.append(f"size = {mul}")
+
     lines.extend(("", "[initial state]"))
     mx, my, mz = magnetisation[0]
     lines.extend(
