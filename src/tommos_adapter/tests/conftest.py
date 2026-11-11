@@ -100,11 +100,11 @@ def tiny_mesh(data_dir):
 
 @pytest.fixture
 def write_mammos_table():
-    """Return a factory writing synthetic TOMMOS tabular output."""
+    """Return a factory writing synthetic tommos tabular output."""
 
     def _write(filename):
         collection = me.EntityCollection(
-            description="Synthetic TOMMOS hysteresis output.",
+            description="Synthetic tommos hysteresis output.",
             config=me.Entity("Index", [0, 1, 2]),
             B_ext_T=me.Entity("MagneticFluxDensity", [-1, 0, 1], "T"),
             J_par_T=me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T"),
