@@ -5,8 +5,9 @@ The only available driver is a `HysteresisDriver` as the only capability of `tom
 
 from __future__ import annotations
 
+import numbers
 import re
-import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -15,10 +16,13 @@ import numpy as np
 import pyvista as pv
 
 from tommos_adapter import scripts
+from tommos_adapter._mesh import _magnetization_at_reference_points, _read_magnetization_grid
+from tommos_adapter.plugins import table_from_file
 from tommos_adapter.tommos_runner import TommosRunner
 
 if TYPE_CHECKING:
     import micromagneticmodel
+    import numpy.typing
 
     import tommos_adapter
 
@@ -26,9 +30,9 @@ if TYPE_CHECKING:
 class HysteresisDriver(mm.adapter_base.ExternalDriver):
     """Driver to run a hysteresis loop.
 
-    The field sweep is defined when calling :meth:`drive` or :meth:`schedule`
-    using ``Hmin``, ``Hmax``, and ``n``. Field vectors are specified in A/m and
-    must lie on a common axis through the origin.
+    The field sweep is defined when calling :meth:`drive` or :meth:`schedule` using the arguments ``h_direction``,
+    an iterable representing the unit vector of the direction of the external field, ``h_start``, the initial magnitude,
+    ``h_final``, the final magnitude``, and ``n``, the number of field steps.
 
     Examples:
         1. Defining a driver.
@@ -56,80 +60,55 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
 
     """
 
-    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a"]
+    _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
 
-    def get_argstr(self, system: micromagneticmodel.System) -> str:
+    def get_argstr(self, system: micromagneticmodel.System, **kwargs: Any) -> str:
         """Return string passed to the `tommos` call.
 
         Args:
             system: Micromagnetic system.
+            **kwargs: Optional keyword arguments passed to the runner call.
 
         Returns:
             Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
         """
-        argstr = f"{system.name}"
-        if sys.platform == "darwin":
-            argstr += " --cpu-spmv-backend scipy --no-cpp-mkl"
+        argstr = f"{system.name} --add-shell"
+        if nd := kwargs.get("num_devices"):
+            if not isinstance(nd, int) or nd < 0:
+                raise ValueError(f"Parameter `num_devices` should be a non-negative integer. Got: {nd}")
+            argstr += f" --num-devices {nd}"
+        if kwargs.get("full_loop"):
+            argstr += " --loop"
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
-        required_arguments = {"Hmin", "Hmax", "n"}
+        required_arguments = {"h_direction", "h_start", "h_final", "n"}
         if not required_arguments.issubset(kwargs):
-            raise ValueError("Hmin, Hmax, and n must all be provided.")
+            raise ValueError("`h_direction`, `h_start`, `h_final`, and `n` must all be provided.")
 
-        fields = {}
-        for name in ("Hmin", "Hmax"):
-            try:
-                field = np.asarray(kwargs[name], dtype=float)
-            except (TypeError, ValueError) as error:
-                raise ValueError(f"{name} must contain three numeric values.") from error
-            if field.shape != (3,):
-                raise ValueError(f"{name} must contain three numeric values.")
-            if not np.all(np.isfinite(field)):
-                raise ValueError(f"{name} must contain only finite values.")
-            fields[name] = field
+        h_direction = _check_direction(kwargs.pop("h_direction"))
+        h_start = _check_field_magnitude(kwargs.pop("h_start"), "h_start")
+        h_final = _check_field_magnitude(kwargs.pop("h_final"), "h_final")
+        n = _check_number_field_steps(kwargs.get("n"))
+        h_start_Tesla = h_start * mm.consts.mu0
+        h_final_Tesla = h_final * mm.consts.mu0
+        h_step_Tesla = (h_final_Tesla - h_start_Tesla) / (n - 1)
 
-        n = kwargs["n"]
-        if isinstance(n, bool) or not isinstance(n, int):
-            raise ValueError(f"n must be an integer, not {type(n).__name__}.")
-        if n < 2:
-            raise ValueError(f"n must be at least 2, got {n}.")
-
-        Hmin = fields["Hmin"]
-        Hmax = fields["Hmax"]
-        field_difference = Hmax - Hmin
-        difference_norm = np.linalg.norm(field_difference)
-        if difference_norm == 0:
-            raise ValueError("Hmin and Hmax must differ.")
-
-        Hmin_norm = np.linalg.norm(Hmin)
-        Hmax_norm = np.linalg.norm(Hmax)
-        if Hmin_norm > 0 and Hmax_norm > 0:
-            relative_cross_product = np.linalg.norm(np.cross(Hmin, Hmax)) / (Hmin_norm * Hmax_norm)
-            if not np.isclose(relative_cross_product, 0, atol=1e-12):
-                raise ValueError("Hmin and Hmax must be collinear with the origin.")
-
-        h = field_difference / difference_norm
-        hstart = float(np.vdot(h, Hmin) * mm.consts.mu0)
-        hfinal = float(np.vdot(h, Hmax) * mm.consts.mu0)
         kwargs.update(
-            hx=float(h[0]),
-            hy=float(h[1]),
-            hz=float(h[2]),
-            hstart=hstart,
-            hfinal=hfinal,
-            hstep=(hfinal - hstart) / (n - 1),
+            hx=h_direction[0],
+            hy=h_direction[1],
+            hz=h_direction[2],
+            hstart=h_start_Tesla,
+            hfinal=h_final_Tesla,
+            hstep=h_step_Tesla,
         )
-
-        # TOMMOS uses the converted field parameters, but n is retained for progress reporting.
-        for key in ["Hmin", "Hmax"]:
-            kwargs.pop(key)
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
         np.savez(f"{system.name}.npz", **mesh)
+        system.m.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
@@ -154,27 +133,31 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if runner is None:
             runner = TommosRunner()
         runner.call(
-            argstr=self.get_argstr(system),
+            argstr=self.get_argstr(system, **kwargs),
             verbose=verbose,
             total=kwargs.get("n"),
             glob_name=f"hyst_{system.name}/*.vtu",
         )
 
     def _schedule_commands(
-        self, system: micromagneticmodel.System, runner: tommos_adapter.tommos_runner.TommosRunner
+        self,
+        system: micromagneticmodel.System,
+        runner: tommos_adapter.tommos_runner.TommosRunner,
+        **kwargs: Any,
     ) -> list[str]:
         """Get the TOMMOS command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
             runner: Runner object defining the calculator.
+            **kwargs: Optional keyword arguments passed to the scheduler call.
 
         Returns:
             Command that runs the TOMMOS hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
-        return [runner._call(argstr=self.get_argstr(system), dry_run=True)]
+        return [runner._call(argstr=self.get_argstr(system, **kwargs), dry_run=True)]
 
     def _read_data(self, system: micromagneticmodel.System) -> None:
         """Read generated data.
@@ -192,55 +175,29 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
                 indexed_output_files.append((int(match.group(1)), output_file))
 
         if not indexed_output_files:
-            raise RuntimeError(f"No TOMMOS VTU output found in '{output_directory}'.")
+            raise RuntimeError(f"No tommos VTU output found in '{output_directory}'.")
 
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
+        output_state = _read_magnetization_grid(last_output_file)
+
+        reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+        magnetization = _magnetization_at_reference_points(reference_points, output_state)
+
+        table_file = output_directory / "mammos_hysteresis.csv"
         try:
-            output_state = pv.read(last_output_file)
-        except Exception as error:
-            raise RuntimeError(f"Cannot read TOMMOS output '{last_output_file}'.") from error
-
-        if not isinstance(output_state, pv.UnstructuredGrid):
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' is not an UnstructuredGrid.")
-        if "m" not in output_state.point_data:
-            raise RuntimeError(f"TOMMOS output '{last_output_file}' does not contain point data 'm'.")
-
-        magnetization = np.asarray(output_state.point_data["m"])
-        expected_shape = (system.m.n_points, 3)
-        if magnetization.shape != expected_shape:
-            raise RuntimeError(
-                f"TOMMOS output magnetization has shape {magnetization.shape}; expected {expected_shape}."
-            )
-        if not np.all(np.isfinite(magnetization)):
-            raise RuntimeError("TOMMOS output magnetization contains non-finite values.")
-
-        matching_mesh = (
-            output_state.n_points == system.m.n_points
-            and output_state.n_cells == system.m.n_cells
-            and np.allclose(
-                output_state.points * scripts.DEFAULT_MESH_UNIT,
-                system.m.points,
-                rtol=1e-7,
-                atol=scripts.DEFAULT_MESH_UNIT * 1e-5,
-            )
-            and np.array_equal(output_state.celltypes, system.m.celltypes)
-            and np.array_equal(output_state.cell_connectivity, system.m.cell_connectivity)
-        )
-        if not matching_mesh:
-            raise RuntimeError(f"Mesh in TOMMOS output '{last_output_file}' does not match system.m.")
+            table = table_from_file(table_file, x=self._x)
+        except (OSError, RuntimeError, ValueError) as error:
+            raise RuntimeError(f"Cannot read tommos table '{table_file}'.") from error
 
         system.m.point_data["m"] = magnetization.copy()
-
-        # TODO: update table information
-        # system.table = table_from_file("output.csv", x=self._x)
+        system.table = table
 
     def schedule_kwargs_setup(self, schedule_kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments for a scheduled run.
 
         Args:
-            schedule_kwargs: Arguments containing the starting field ``Hmin``
-                in A/m, final field ``Hmax`` in A/m, and number of field
-                points ``n``.
+            schedule_kwargs: Arguments containing the starting field direction ``h_direction``, initial magnitude
+                ``h_start`` in A/m, final magnitude ``h_final`` in A/m, and number of field steps ``n``.
 
         Raises:
             ValueError: If arguments are missing or do not define a valid
@@ -252,9 +209,8 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Validate and convert hysteresis arguments for a direct run.
 
         Args:
-            drive_kwargs: Arguments containing the starting field ``Hmin`` in
-                A/m, final field ``Hmax`` in A/m, and number of field points
-                ``n``.
+            drive_kwargs: Arguments containing the starting field direction ``h_direction``, initial magnitude
+                ``h_start`` in A/m, final magnitude ``h_final`` in A/m, and number of field steps ``n``.
 
         Raises:
             ValueError: If arguments are missing or do not define a valid
@@ -319,3 +275,70 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
     @property
     def _x(self) -> str:
         return "B_hysteresis"
+
+
+def _check_direction(h_direction: Sequence[numbers.Real]) -> numpy.ndarray:
+    """Check field value and convert it to normalized NumPy array.
+
+    Args:
+        h_direction: Direction array to check and convert to NumPy array.
+
+    Returns:
+        Normalized NumPy array.
+
+    Raises:
+        RuntimeError: Given direction is not convertible to a numeric NumPy array.
+        RuntimeError: Given direction is not a one-dimensional array of three numerical values.
+        ValueError: Given direction contains infinite values.
+        ValueError: Given direction has zero magnitude.
+    """
+    try:
+        h = np.asarray(h_direction, dtype=float)
+    except Exception as exc:
+        raise RuntimeError(f"Conversion of direction `h_direction` to NumPy array failed. {h_direction=}") from exc
+    if h.shape != (3,):
+        raise RuntimeError(
+            f"Direction `h_direction` must be a one-dimensional array containing three "
+            f"numerical values. {h_direction=}."
+        )
+    if not np.all(np.isfinite(h)):
+        raise ValueError(f"Direction `h_direction` must contain only finite values. Got {h_direction=}")
+    if (h_norm := np.linalg.norm(h)) > 0:
+        return h / h_norm
+    else:
+        raise ValueError(f"Direction `h_direction` cannot have zero norm. Got {h_direction=}")
+
+
+def _check_field_magnitude(h: numbers.Real, name: str) -> float:
+    """Check field magnitude and convert it to a float.
+
+    Args:
+        h: Field magnitude.
+        name: String for error messages.
+
+    Returns:
+        Checked field magnitude as a Python float.
+
+    Raises:
+        ValueError: Given direction contains infinite values or NaNs.
+    """
+    if not (isinstance(h, numbers.Real) and np.isfinite(h)):
+        raise ValueError(f"Field magnitude `{name}` must be a single finite real number. Got {h}")
+    return float(h)
+
+
+def _check_number_field_steps(n: numbers.Integral) -> int:
+    """Check number of field steps and convert it to an int.
+
+    Args:
+        n: Number of field steps.
+
+    Returns:
+        Checked number of steps as a Python integer.
+
+    Raises:
+        ValueError: Given value is not an integer bigger than 2.
+    """
+    if not isinstance(n, numbers.Integral) or n < 2 or not np.isfinite(n):
+        raise ValueError(f"Parameter `n` (number of field steps) must be an integer bigger than 2. Got: {n}")
+    return int(n)

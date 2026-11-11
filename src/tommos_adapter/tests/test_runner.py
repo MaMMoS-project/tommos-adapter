@@ -1,16 +1,89 @@
+"""Test configurable TOMMOS command construction and executable lookup."""
+
 import re
+import shlex
+import subprocess
+import sys
+from unittest.mock import Mock
+
+import pytest
 
 from tommos_adapter import TommosRunner
 
 
+@pytest.fixture
+def platform_suffix():
+    if sys.platform == "darwin":
+        return " --cpu-spmv-backend scipy --no-cpp-mkl"
+    else:
+        return ""
+
+
 def test_name():
+    """Expose the calculator name expected by the external-runner API."""
     assert TommosRunner().package_name == "Tommos"
 
 
-def test_call_dry_run():
+def test_call_dry_run(platform_suffix):
+    """Construct the default TOMMOS command without executing it."""
     runner = TommosRunner()
     cmd = runner._call("hyst", dry_run=True)
-    assert cmd == "tommos loop hyst"
+    assert cmd == "tommos loop hyst" + platform_suffix
+
+
+@pytest.mark.parametrize(
+    ("command", "expected"),
+    [
+        ("pixi run -e cuda tommos", "pixi run -e cuda tommos loop hyst"),
+        (["pixi", "run", "-e", "cuda", "tommos"], "pixi run -e cuda tommos loop hyst"),
+    ],
+)
+def test_call_dry_run_with_command_prefix(command, expected, platform_suffix):
+    """Accept string and sequence forms of a multi-part command prefix."""
+    runner = TommosRunner(command=command)
+    assert runner._call("hyst", dry_run=True) == expected + platform_suffix
+
+
+def test_call_dry_run_does_not_require_local_executable(monkeypatch, platform_suffix):
+    """Keep dry-run command generation usable for remote scheduling."""
+    which = Mock()
+    monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", which)
+
+    expected = "missing-tommos loop hyst" + platform_suffix
+    assert TommosRunner(command="missing-tommos")._call("hyst", dry_run=True) == expected
+    which.assert_not_called()
+
+
+def test_call_missing_executable(monkeypatch):
+    """Report a helpful error before executing a missing local command."""
+    monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", lambda executable: None)
+
+    with pytest.raises(OSError, match="command executable 'missing-tommos' was not found"):
+        TommosRunner(command="missing-tommos")._call("hyst")
+
+
+def test_call_resolves_executable(monkeypatch, platform_suffix):
+    """Resolve the command executable before invoking the subprocess."""
+    run = Mock(return_value=subprocess.CompletedProcess([], 0))
+    monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", lambda executable: "/resolved/tommos")
+    monkeypatch.setattr("tommos_adapter.tommos_runner.subprocess.run", run)
+
+    result = TommosRunner()._call("hyst")
+    expected_cmd = shlex.split("/resolved/tommos loop hyst" + platform_suffix)
+
+    assert result.returncode == 0
+    run.assert_called_once_with(
+        expected_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+@pytest.mark.parametrize("command", ["", [], ["tommos", ""], ["tommos", 1]])
+def test_invalid_command(command):
+    """Reject empty commands and command parts that are not non-empty strings."""
+    with pytest.raises(ValueError, match="sequence containing only non-empty strings"):
+        TommosRunner(command=command)
 
 
 def test_call():
