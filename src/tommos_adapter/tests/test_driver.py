@@ -195,10 +195,8 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
     assert "size = 1.0000000000000001e-09" in p2_text
-    expected_points = np.asarray(state.points, dtype=np.float64) / ta.scripts.DEFAULT_MESH_UNIT
     saved_initial = pv.read(tmp_path / "m0.vtu")
-    np.testing.assert_allclose(saved_initial.points, expected_points, rtol=1e-14, atol=0)
-    assert saved_initial.field_data["mesh_unit_length"][0] == ta.scripts.DEFAULT_MESH_UNIT
+    np.testing.assert_array_equal(saved_initial.points, input_points)
     np.testing.assert_array_equal(system.m.points, input_points)
     assert "mx = 0" in p2_text
     assert "my = 0" in p2_text

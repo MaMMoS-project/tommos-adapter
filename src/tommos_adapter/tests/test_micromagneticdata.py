@@ -6,7 +6,6 @@ import pytest
 import pyvista as pv
 from micromagneticdata.testing.drive import *  # noqa: F403
 
-from tommos_adapter import scripts
 from tommos_adapter.plugins.tommos_drive import TommosDrive
 
 
@@ -38,11 +37,10 @@ def test_plugin_reads_simulation_results(drive, tommos_simulation):
     output_grids = list(drive)
     assert len(output_grids) == 2
 
-    expected_points = system.m.points / scripts.DEFAULT_MESH_UNIT
+    expected_points = system.m.points
     for grid in [initial_grid, *output_grids]:
         assert isinstance(grid, pv.UnstructuredGrid)
-        assert grid.field_data["mesh_unit_length"][0] == scripts.DEFAULT_MESH_UNIT
-        np.testing.assert_allclose(grid.points, expected_points, rtol=1e-14, atol=0)
+        np.testing.assert_array_equal(grid.points, expected_points)
         np.testing.assert_array_equal(grid.cells, system.m.cells)
         np.testing.assert_array_equal(grid.cell_data["region_id"], system.m.cell_data["region_id"])
         np.testing.assert_array_equal(grid.cell_data["Ms"], system.m.cell_data["Ms"])

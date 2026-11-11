@@ -9,6 +9,7 @@ import micromagneticdata as mdata
 import pyvista as pv
 
 from tommos_adapter._mesh import _magnetization_at_reference_points, _read_magnetization_grid
+from tommos_adapter.scripts import DEFAULT_MESH_UNIT
 
 
 class TommosDrive(mdata.Drive):
@@ -65,5 +66,6 @@ class TommosDrive(mdata.Drive):
             return output_grid
 
         reference_grid = _read_magnetization_grid(self._m0_path)
-        reference_grid.point_data["m"] = _magnetization_at_reference_points(reference_grid.points, output_grid)
+        reference_points = reference_grid.points / DEFAULT_MESH_UNIT
+        reference_grid.point_data["m"] = _magnetization_at_reference_points(reference_points, output_grid)
         return reference_grid

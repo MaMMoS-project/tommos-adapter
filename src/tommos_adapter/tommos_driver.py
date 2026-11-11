@@ -122,11 +122,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         """Write input files."""
         mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
         np.savez(f"{system.name}.npz", **mesh)
-        # Save simulation coordinates without changing the user's grid.
-        initial_grid = system.m.copy()
-        initial_grid.points = mesh["knt"]
-        initial_grid.field_data["mesh_unit_length"] = scripts.DEFAULT_MESH_UNIT
-        initial_grid.save("m0.vtu")
+        system.m.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
 
         p2_arguments = {name: kwargs[name] for name in ("hx", "hy", "hz", "hstart", "hfinal", "hstep")}
