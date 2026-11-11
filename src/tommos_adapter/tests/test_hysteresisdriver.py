@@ -473,6 +473,23 @@ def test_check_system_requires_grid_data(state_zero, association, name, error_me
         ta.HysteresisDriver()._check_system(system)
 
 
+@pytest.mark.parametrize(
+    "field_data, error, error_message",
+    [
+        (None, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_ids": "TODO"}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_names": "TODO"}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+    ],
+)
+def test_check_multigrain_field_data(state_zero, field_data, error, error_message):
+    """Check field data consistency for multirgain materials."""
+    state = state_zero.copy()
+    state.cell_data["mat_id"][-1] = 2
+    system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=state)
+    with pytest.raises(error, match=error_message):
+        ta.HysteresisDriver()._check_system(system)
+
+
 def test_check_system_magnetization_shape(state_zero):
     """Magnetization must contain one three-dimensional vector per point."""
     state = state_zero.copy()

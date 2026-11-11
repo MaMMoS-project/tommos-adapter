@@ -228,6 +228,14 @@ class Driver(mm.adapter_base.ExternalDriver):
             if name not in system.m.cell_data:
                 raise RuntimeError(f"The material array '{name}' is missing from system.m.cell_data.")
 
+        if len(np.unique(system.m.cell_data["mat_id"])) > 1 and not {"mat_ids", "mat_names"}.issubset(
+            system.m.field_data
+        ):
+            raise RuntimeError(
+                "Field data 'mat_ids' and 'mat_names' are necessary for multigrain materials. "
+                f"Got field data: {system.m.field_data}."
+            )
+
         magnetization = np.asarray(system.m.point_data["m"])
         expected_shape = (system.m.n_points, 3)
         if magnetization.shape != expected_shape:
