@@ -9,10 +9,10 @@ The provisional unstructured-grid contract is:
 * ``point_data["m"]`` contains the nodal magnetisation directions.
 * ``cell_data["mat_id"]`` contains one material identifier per tetrahedron.
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
-* ``field_data["mesh_unit_lenght"]`` contains the mesh unit length.
+* ``field_data["mesh_unit_length"]`` contains the mesh unit length.
 * ``field_data["mat_ids"]`` and ``field_data["mat_names"]`` map numeric material
   identifiers to names used in parameter dictionaries. They are optional for singlegrain
-  materials and mandatory for multigrain instead.
+  materials and mandatory for multigrain.
 
 TOMMOS material identifiers are contiguous and one-based. Source material
 identifiers are therefore remapped when mesh data are generated.
