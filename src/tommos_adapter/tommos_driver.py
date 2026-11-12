@@ -58,12 +58,12 @@ class Driver(mm.adapter_base.ExternalDriver):
 
     @property
     @abc.abstractmethod
-    def _needed_energy_terms(self):
+    def _needed_energy_terms(self) -> tuple[str]:
         """Needed energy terms in the system."""
 
     @property
     @abc.abstractmethod
-    def _supported_energy_terms(self):
+    def _supported_energy_terms(self) -> tuple[str]:
         """Supported energy terms in the system."""
 
     @abc.abstractmethod
