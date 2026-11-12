@@ -227,6 +227,8 @@ class Driver(mm.adapter_base.ExternalDriver):
         for name in ("mat_id", "Ms"):
             if name not in system.m.cell_data:
                 raise RuntimeError(f"The material array '{name}' is missing from system.m.cell_data.")
+        if "mesh_unit_length" not in system.m.field_data:
+            raise RuntimeError("The scaling factor 'mesh_unit_length' is missing from system.m.field_data.")
 
         if len(np.unique(system.m.cell_data["mat_id"])) > 1 and not {"mat_ids", "mat_names"}.issubset(
             system.m.field_data
