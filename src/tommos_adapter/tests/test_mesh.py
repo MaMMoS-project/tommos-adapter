@@ -59,7 +59,7 @@ def _eval_volume_mesh(mesh):
         (np.float64(5), np.float64(10), np.float64(7), lambda x: array("f", x)),
     ],
 )
-def test_mesh_box(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
+def test_mesh_box(tmp_path, Lx, Ly, Lz, wrapper):
     """Test volume of mesh 'box'.
 
     Points (Px, Py, Pz) satisfy:
@@ -69,8 +69,8 @@ def test_mesh_box(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
 
     Volume is `Lx * Ly * Lz`.
     """
-    monkeypatch.chdir(tmp_path)
-    mesh = ta.create_mesh(geom="box", extent=wrapper([Lx, Ly, Lz]), h=2, out_name="box")
+    out_name = tmp_path / "cube.vtu"
+    mesh = ta.create_mesh(geom="box", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name)
 
     # all mesh points are inside the box
     assert np.all(np.abs(mesh.points[:, 0]) <= Lx / 2)
@@ -100,7 +100,7 @@ def test_mesh_box(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
         (np.float64(10), np.float64(20), np.float64(15), lambda x: array("f", x)),
     ],
 )
-def test_mesh_ellipsoid(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
+def test_mesh_ellipsoid(tmp_path, Lx, Ly, Lz, wrapper):
     """Test volume of mesh 'ellipsoid'.
 
     Points (Px, Py, Pz) satisfy: `(Px/a)^2 + (Py/b)^2 + (Pz/c))^2 <= 1`.
@@ -112,8 +112,8 @@ def test_mesh_ellipsoid(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
 
     Volume is `a * b * c * π * 4 / 3`.
     """
-    monkeypatch.chdir(tmp_path)
-    mesh = ta.create_mesh(geom="ellipsoid", extent=wrapper([Lx, Ly, Lz]), h=2, out_name="ellipsoid")
+    out_name = tmp_path / "ellipsoid.vtu"
+    mesh = ta.create_mesh(geom="ellipsoid", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name)
 
     # all mesh points are inside the ellipsoid
     a = (Lx + Ly) / 4
@@ -146,7 +146,7 @@ def test_mesh_ellipsoid(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
         (np.float64(5), np.float64(10), np.float64(7), lambda x: array("f", x)),
     ],
 )
-def test_mesh_eye(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
+def test_mesh_eye(tmp_path, Lx, Ly, Lz, wrapper):
     """Test volume of mesh 'eye'.
 
     Lx is the full eye length.
@@ -159,8 +159,8 @@ def test_mesh_eye(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
 
     Volume is `Lx * Ly * Lz * 2 / 3`.
     """
-    monkeypatch.chdir(tmp_path)
-    mesh = ta.create_mesh(geom="eye", extent=wrapper([Lx, Ly, Lz]), h=2, out_name="eye")
+    out_name = tmp_path / "eye.vtu"
+    mesh = ta.create_mesh(geom="eye", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name)
 
     # all mesh points are inside the eye prism
     for point in mesh.points:
@@ -191,7 +191,7 @@ def test_mesh_eye(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
         (np.float64(5), np.float64(10), np.float64(7), lambda x: array("f", x)),
     ],
 )
-def test_mesh_elliptic_cylinder(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
+def test_mesh_elliptic_cylinder(tmp_path, Lx, Ly, Lz, wrapper):
     """Test volume of mesh 'elliptic_cylinder'.
 
     Points (Px, Py, Pz) satisfy:
@@ -200,8 +200,8 @@ def test_mesh_elliptic_cylinder(tmp_path, monkeypatch, Lx, Ly, Lz, wrapper):
 
     Volume is `π * (Lx/2) * (Ly/2) * Lz`.
     """
-    monkeypatch.chdir(tmp_path)
-    mesh = ta.create_mesh(geom="elliptic_cylinder", extent=wrapper([Lx, Ly, Lz]), h=2, out_name="elliptic_cylinder")
+    out_name = tmp_path / "elliptic_cylinder.vtu"
+    mesh = ta.create_mesh(geom="elliptic_cylinder", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name)
 
     # all mesh points are inside the cylinder
     for point in mesh.points:

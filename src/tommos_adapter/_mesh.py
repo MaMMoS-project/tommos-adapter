@@ -7,6 +7,7 @@ import os
 import shlex
 import subprocess
 from collections.abc import Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,12 +15,13 @@ import pyvista as pv
 
 if TYPE_CHECKING:
     import collections.abc
+    import os
 
     import pyvista
 
 
 def create_mesh(
-    geom: str, extent: collections.abc.Sequence[numbers.Real], h: numbers.Real, out_name: str
+    geom: str, extent: collections.abc.Sequence[numbers.Real], h: numbers.Real, out_name: os.PathLike
 ) -> pyvista.UnstructuredGrid:
     """Create mesh using `tommos mesh`.
 
@@ -47,13 +49,16 @@ def create_mesh(
     if not (isinstance(h, numbers.Real) and h > 0 and np.isfinite(h)):
         raise ValueError(f"Argument `h` must be a positive finite real number. Got {h}.")
 
+    out_name = Path(out_name)
+    out_name.parent.mkdir(parents=True, exist_ok=True)
     extent_string = ",".join(str(L) for L in extent)
     res = subprocess.run(
-        shlex.split(f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name}"),
+        shlex.split(f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name.name}"),
+        cwd=out_name.parent,
         capture_output=True,
     )
     res.check_returncode()
-    return pv.read(f"{out_name}.vtu")
+    return pv.read(out_name.with_suffix(".vtu"))
 
 
 def _read_magnetization_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
