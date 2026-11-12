@@ -7,6 +7,7 @@ import numpy as np
 import pyvista as pv
 
 import tommos_adapter as ta
+from tommos_adapter.plugins import table_from_file
 
 
 def test_uniformly_magnetised_cube_energy(tmp_path, monkeypatch):
@@ -55,15 +56,15 @@ def test_uniformly_magnetised_cube_energy(tmp_path, monkeypatch):
         hstep=1,
     )
 
+    argstr = driver.get_argstr(system, num_devices=1)
     result = ta.TommosRunner()._call(
-        f"{name} --add-shell --no-loop --B-start 0 --B-end 0 --dB 1 "
-        "--max-iter 0 --no-cpp-mkl --cpu-spmv-backend scipy "
-        "--poisson-solver jax --snapshot-every 0 --num-devices 1"
+        f"{argstr} --no-loop --B-start 0 --B-end 0 --dB 1 "
+        "--max-iter 0 --poisson-solver jax --snapshot-every 0"
     )
     assert result.returncode == 0, result.stdout.decode() + result.stderr.decode()
 
-    output = np.loadtxt(tmp_path / f"hyst_{name}" / f"{name}.mh")
-    energy_density = np.atleast_2d(output)[0, 5]
+    table = table_from_file(tmp_path / f"hyst_{name}" / "mammos_hysteresis.csv")
+    energy_density = table.data["E"].iloc[0]
     expected_energy_density = spontaneous_polarisation**2 / (6 * mm.consts.mu0)
 
     np.testing.assert_allclose(energy_density, expected_energy_density, rtol=0.04)
