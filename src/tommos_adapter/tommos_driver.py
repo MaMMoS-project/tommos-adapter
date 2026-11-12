@@ -58,12 +58,12 @@ class Driver(mm.adapter_base.ExternalDriver):
 
     @property
     @abc.abstractmethod
-    def _needed_energy_terms(self) -> tuple[str]:
+    def _needed_energy_terms(self) -> tuple[micromagneticmodel.Energy]:
         """Needed energy terms in the system."""
 
     @property
     @abc.abstractmethod
-    def _supported_energy_terms(self) -> tuple[str]:
+    def _supported_energy_terms(self) -> tuple[micromagneticmodel.Energy]:
         """Supported energy terms in the system."""
 
     @abc.abstractmethod
@@ -204,13 +204,13 @@ class Driver(mm.adapter_base.ExternalDriver):
             raise RuntimeError("System's energy is not defined")
         # check needed energy
         for needed_energy in self._needed_energy_terms:
-            if needed_energy not in (e.name for e in system.energy):
+            if not system.energy.get(type=needed_energy):
                 raise ValueError(
                     f"Needed energy {needed_energy} not defined in system {system} with energies {system.energy=}"
                 )
         # check supported energies and attributes
         for term in system.energy:
-            if term.name not in self._supported_energy_terms:
+            if type(term) not in self._supported_energy_terms:
                 raise ValueError(f"Energy term {term!r} is not supported by this driver.")
             if isinstance(term, mm.Demag) and hasattr(term, "asymptotic_radius"):
                 raise RuntimeError(
@@ -291,14 +291,14 @@ class HysteresisDriver(Driver):
     """
 
     @property
-    def _needed_energy_terms(self) -> tuple[str]:
+    def _needed_energy_terms(self) -> tuple[micromagneticmodel.Energy]:
         """Needed energy terms in the system."""
-        return ("demag",)
+        return (mm.Demag,)
 
     @property
-    def _supported_energy_terms(self) -> tuple[str]:
+    def _supported_energy_terms(self) -> tuple[micromagneticmodel.Energy]:
         """Supported energy terms in the system."""
-        return ("exchange", "uniaxialanisotropy", "demag")
+        return (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag)
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
