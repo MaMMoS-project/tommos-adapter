@@ -92,6 +92,63 @@ def create_mesh(
     return pv.read(out_name.with_suffix(".vtu"))
 
 
+def set_magnetization(
+    mesh: pyvista.UnstructuredGrid,
+    m: tuple,
+    Ms: numbers.Real,
+    mesh_unit_length: numbers.Real = 1e-9,
+) -> pyvista.UnstructuredGrid:
+    """Set values to initial magnetization.
+
+    This convenience function sets up the initial magnetization field, the spontaneous magnetization, the mesh
+    unit length and the grain names.
+
+    Args:
+        mesh: Mesh to fill with information.
+        m: single magnetization array to spread to all mesh points. It gets normalized internally.
+        Ms: single spontaneous magnetization value to spread to all mesh cells.
+        mesh_unit_length: Mesh unit length. Default value assumes we are working in the nanoscale.
+
+    Returns:
+        Mesh with set values.
+
+    Raises:
+        ValueError: `m` is of the wrong type, wrong length, or contains non finite values.
+        ValueError: `Ms` is not a finite real number.
+        ValueErrro: `mesh_unit_length` is not a positive finite real number.
+    """
+    if not (
+        isinstance(m, Sequence | np.ndarray)
+        and len(m) == 3
+        and all(isinstance(m_i, numbers.Real) and np.isfinite(m_i) for m_i in m)
+    ):
+        raise ValueError(f"Argument `m` must be an array-like of length 3 of finite numbers. Got {m}")
+    m_array = np.asarray(m, dtype=np.float64)
+    if (m_norm := np.linalg.norm(m_array)) > 0:
+        m_array /= m_norm
+    else:
+        raise ValueError("Argument `m` cannot be the zero vector.")
+    mesh.point_data["m"] = np.tile(m_array, (mesh.n_points, 1))
+
+    mesh.field_data["mat_ids"] = np.unique(mesh.cell_data["mat_id"])
+    number_grains = len(mesh.field_data["mat_ids"])
+    if number_grains == 1:
+        # single grain: accept a single Ms
+        if not (isinstance(Ms, numbers.Real) and Ms > 0 and np.isfinite(Ms)):
+            raise ValueError(f"Argument `Ms` must be a positive finite real number. Got {Ms}.")
+        mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
+    else:
+        raise NotImplementedError("Function `set_magnetization` does not support multigrain materials yet.")
+
+    if not (isinstance(mesh_unit_length, numbers.Real) and mesh_unit_length > 0 and np.isfinite(mesh_unit_length)):
+        raise ValueError(f"Argument `mesh_unit_length` must be a positive finite real number. Got {mesh_unit_length}.")
+    mesh.field_data["mesh_unit_length"] = mesh_unit_length
+
+    mesh.field_data["mat_names"] = [f"grain_{i}" for i in mesh.field_data["mat_ids"]]
+
+    return mesh
+
+
 def _read_magnetization_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
     """Read a tommos VTU grid and validate its point magnetization.
 
