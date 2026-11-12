@@ -57,9 +57,11 @@ def test_uniformly_magnetised_cube_energy(tmp_path, monkeypatch):
     )
 
     argstr = driver.get_argstr(system, num_devices=1)
+    # The C++ minimizer does not evaluate the initial energy when max_iter is zero.
     result = ta.TommosRunner()._call(
         f"{argstr} --no-loop --B-start 0 --B-end 0 --dB 1 "
-        "--max-iter 0 --poisson-solver jax --snapshot-every 0"
+        "--max-iter 0 --no-cpp-mkl --cpu-spmv-backend scipy "
+        "--poisson-solver jax --snapshot-every 0"
     )
     assert result.returncode == 0, result.stdout.decode() + result.stderr.decode()
 
