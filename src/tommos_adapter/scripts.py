@@ -279,7 +279,7 @@ def p2_script(
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
         raise ValueError(f"tol_fun must be a positive finite number, got {tol_fun!r}.")
-    if mstep is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
+    if mstep is not None and (not isinstance(mstep, Real) or not np.isfinite(mstep) or mstep <= 0):
         raise ValueError(f"mstep must be a positive finite number, got {mstep!r}.")
     if method != "" and (not isinstance(method, str) or method not in ["pcohen_hs", "tr"]):
         raise ValueError(f"method must be a string between 'pcohen_hs' and 'tr', got {method!r}.")
