@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 
 def create_mesh(
-    geom: str, extent: collections.abc.Sequence[numbers.Real], h: numbers.Real, out_name: os.PathLike
+    geom: str,
+    extent: collections.abc.Sequence[numbers.Real],
+    h: numbers.Real,
+    out_name: os.PathLike,
+    *,
+    additional_arguments: str = "",
 ) -> pyvista.UnstructuredGrid:
     """Create mesh using `tommos mesh`.
 
@@ -31,6 +36,7 @@ def create_mesh(
         h: Mesh size.
         out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
             will be read using Pyvista.
+        additional_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...` command.
     """
     if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder"]:
         raise ValueError(
@@ -53,7 +59,10 @@ def create_mesh(
     out_name.parent.mkdir(parents=True, exist_ok=True)
     extent_string = ",".join(str(L) for L in extent)
     res = subprocess.run(
-        shlex.split(f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name.name}"),
+        shlex.split(
+            f"tommos mesh --geom {geom} --extent {extent_string} --h {h}"
+            f" --out-name {out_name.name} {additional_arguments}"
+        ),
         cwd=out_name.parent,
         capture_output=True,
     )

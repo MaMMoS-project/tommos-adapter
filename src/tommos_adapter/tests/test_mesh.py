@@ -6,7 +6,11 @@ For each mesh geometry, we will check that:
 - the mesh volume (evaluated as sum of the volume of all tetrahedrons) are as expected.
 """
 
+import shlex
+import subprocess
 from array import array
+from pathlib import Path
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
@@ -30,6 +34,22 @@ def test_create_mesh_wrong_extent(extent):
 def test_create_mesh_wrong_h(h):
     with pytest.raises(ValueError, match="Argument `h` must be"):
         ta.create_mesh(geom="box", extent=(20, 20, 20), h=h, out_name="test")
+
+
+@pytest.mark.parametrize("additional_arguments", ["--backend grid", "--n 3"])
+def test_create_mesh_additional_arguments(monkeypatch, additional_arguments):
+    """Test possible additional arguments passed to `create_mesh`."""
+    run = Mock(return_value=subprocess.CompletedProcess([], 0))
+    monkeypatch.setattr("tommos_adapter._mesh.subprocess.run", run)
+    monkeypatch.setattr("tommos_adapter._mesh.pv.read", lambda x: None)
+    expected_cmd = shlex.split(f"tommos mesh --geom box --extent 2,2,2 --h 2 --out-name cube {additional_arguments}")
+
+    ta.create_mesh("box", (2, 2, 2), h=2, out_name="cube", additional_arguments=additional_arguments)
+    run.assert_called_once_with(
+        expected_cmd,
+        cwd=Path("."),
+        capture_output=True,
+    )
 
 
 def _eval_volume_mesh(mesh):
