@@ -123,7 +123,7 @@ def set_magnetization(
         and all(isinstance(m_i, numbers.Real) and np.isfinite(m_i) for m_i in m)
     ):
         raise ValueError(f"Argument `m` must be an array-like of length 3 of finite numbers. Got {m}")
-    mesh.point_data["m"] = np.tile(m, (mesh.n_points, 1))
+    mesh.point_data["m"] = np.tile(np.asarray(m, dtype=np.float64), (mesh.n_points, 1))
 
     mesh.field_data["mat_ids"] = np.unique(mesh.cell_data["mat_id"])
     number_grains = len(mesh.field_data["mat_ids"])
