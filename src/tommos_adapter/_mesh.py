@@ -134,8 +134,8 @@ def set_magnetization(
     number_grains = len(mesh.field_data["mat_ids"])
     if number_grains == 1:
         # single grain: accept a single Ms
-        if not (isinstance(Ms, numbers.Real) and np.isfinite(Ms)):
-            raise ValueError(f"Argument `Ms` must be a finite real number. Got {Ms}.")
+        if not (isinstance(Ms, numbers.Real) and Ms > 0 and np.isfinite(Ms)):
+            raise ValueError(f"Argument `Ms` must be a positive finite real number. Got {Ms}.")
         mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
     else:
         raise NotImplementedError("Function `set_magnetization` does not support multigrain materials yet.")
