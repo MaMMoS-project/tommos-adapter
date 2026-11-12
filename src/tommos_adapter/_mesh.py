@@ -37,6 +37,28 @@ def create_mesh(
         out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
             will be read using Pyvista.
         additional_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...` command.
+
+    Returns:
+        Mesh read from the created `.vtu` file.
+
+    Raises:
+        ValueError: argument `geom` was not recognized.
+        ValueError: argument `extent` has the wrong type, length, or content.
+        ValueError: argument `h` is not a positive finite real number.
+
+    Examples:
+        1. Create a 20x20x20 cube of mesh size 2 whose file is called `cube.vtu`.
+        >>> import tommos_adapter as ta
+        ...
+        >>> ta.create_mesh("box", extent=[20, 20, 20], h=2, out_name="cube")
+        UnstructuredGrid...
+
+        2. Create a sphere of radius 8 using a different `tommos mesh` backend.
+        >>> import tommos_adapter as ta
+        ...
+        >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_arguments="--backend grid")
+        UnstructuredGrid...
+
     """
     if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder"]:
         raise ValueError(
