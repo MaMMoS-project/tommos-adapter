@@ -422,6 +422,7 @@ def test_check_system_requires_unstructured_grid():
         ("point_data", "m", "magnetization array 'm' is missing"),
         ("cell_data", "mat_id", "material array 'mat_id' is missing"),
         ("cell_data", "Ms", "material array 'Ms' is missing"),
+        ("field_data", "mesh_unit_length", "'mesh_unit_length' is missing"),
     ],
 )
 def test_check_system_requires_grid_data(state_zero, association, name, error_message):

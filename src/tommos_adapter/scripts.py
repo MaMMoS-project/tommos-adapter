@@ -292,8 +292,6 @@ def p2_script(
 
     lines = ["[mesh]"]
 
-    if "mesh_unit_length" not in system.m.field_data:
-        raise ValueError("Mesh does not have necessary field data `mesh_unit_length`.")
     mesh_unit_length = system.m.field_data["mesh_unit_length"]
     if len(mesh_unit_length) != 1:
         raise ValueError(f"Mesh unit length should be a single-valued field data. Got {mesh_unit_length}")

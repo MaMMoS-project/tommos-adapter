@@ -47,7 +47,6 @@ def system():
 @pytest.mark.parametrize(
     "mesh_unit_length, error_string",
     [
-        (None, "Mesh does not have necessary field data `mesh_unit_length`"),
         ([1, 2], "Mesh unit length should be a single-valued field data"),
         (-1e-9, "must be a positive finite number"),
         (np.nan, "must be a positive finite number"),
