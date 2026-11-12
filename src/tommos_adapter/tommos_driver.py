@@ -82,7 +82,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         return argstr
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
-        """Validate and convert hysteresis arguments to TOMMOS parameters."""
+        """Validate and convert hysteresis arguments to tommos parameters."""
         required_arguments = {"h_direction", "h_start", "h_final", "n"}
         if not required_arguments.issubset(kwargs):
             raise ValueError("`h_direction`, `h_start`, `h_final`, and `n` must all be provided.")
@@ -145,7 +145,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         runner: tommos_adapter.tommos_runner.TommosRunner,
         **kwargs: Any,
     ) -> list[str]:
-        """Get the TOMMOS command to add to a schedule script.
+        """Get the tommos command to add to a schedule script.
 
         Args:
             system: Micromagnetic system.
@@ -153,7 +153,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             **kwargs: Optional keyword arguments passed to the scheduler call.
 
         Returns:
-            Command that runs the TOMMOS hysteresis simulation.
+            Command that runs the tommos hysteresis simulation.
         """
         if runner is None:
             runner = TommosRunner()
@@ -240,7 +240,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
         if system.m is None:
             raise RuntimeError(f"Undefined magnetization state in given system {system}.")
         if not isinstance(system.m, pv.UnstructuredGrid):
-            raise TypeError("TOMMOS requires system.m to be a pyvista.UnstructuredGrid.")
+            raise TypeError("tommos requires system.m to be a pyvista.UnstructuredGrid.")
         if "m" not in system.m.point_data:
             raise RuntimeError("The magnetization array 'm' is missing from system.m.point_data.")
         for name in ("region_id", "Ms"):
@@ -259,7 +259,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             raise RuntimeError("The magnetization array 'm' must contain unit vectors at every mesh point.")
         if not np.allclose(magnetization, magnetization[0], rtol=1e-12, atol=1e-14):
             raise RuntimeError(
-                "TOMMOS adapter currently supports only a uniform initial magnetization; "
+                "tommos adapter currently supports only a uniform initial magnetization; "
                 "writing a restart VTU file is not implemented yet."
             )
 
@@ -270,7 +270,7 @@ class HysteresisDriver(mm.adapter_base.ExternalDriver):
             scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
             scripts.krn_data(system)
         except (TypeError, ValueError) as error:
-            raise RuntimeError(f"System cannot be translated to TOMMOS input: {error}") from error
+            raise RuntimeError(f"System cannot be translated to tommos input: {error}") from error
 
     @property
     def _x(self) -> str:
