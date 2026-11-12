@@ -5,7 +5,6 @@ from __future__ import annotations
 import numbers
 import os
 import shlex
-import shutil
 import subprocess
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -25,17 +24,15 @@ def create_mesh(
     """Create mesh using `tommos mesh`.
 
     Args:
-        geom: String specifying the geometry. Possible choices are 'box', 'ellipsoid', 'eye', 'elliptic_cylinder',
-            or 'poly_gb'.
+        geom: String specifying the geometry. Possible choices are 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'.
         extent: Sequence of three real numbers specifying the three parameters defining the geometry.
         h: Mesh size.
         out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
             will be read using Pyvista.
     """
-    if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly_gb"]:
+    if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder"]:
         raise ValueError(
-            "Argument `geom` must be one of 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', or "
-            f"'poly_gb'. Got {geom}."
+            f"Argument `geom` must be one of 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'. Got {geom}."
         )
 
     if not (
@@ -50,17 +47,9 @@ def create_mesh(
     if not (isinstance(h, numbers.Real) and h > 0 and np.isfinite(h)):
         raise ValueError(f"Argument `h` must be a positive finite real number. Got {h}.")
 
-    if geom == "poly_gb":
-        if shutil.which("neper") is None:
-            raise RuntimeError("Neper not found. Please install it.")
-        extra_args = "--n 2"  # TODO: implement other multigrain arguments
-        # we choose n=2 (number of grains) so tests run faster
-    else:
-        extra_args = ""
-
     extent_string = ",".join(str(L) for L in extent)
     res = subprocess.run(
-        shlex.split(f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name} {extra_args}"),
+        shlex.split(f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name}"),
         capture_output=True,
     )
     res.check_returncode()
