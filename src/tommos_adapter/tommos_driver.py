@@ -290,8 +290,15 @@ class HysteresisDriver(Driver):
 
     """
 
-    _needed_energy_terms = ("demag",)
-    _supported_energy_terms = ("exchange", "uniaxialanisotropy", "demag")
+    @property
+    def _needed_energy_terms(self) -> tuple[str]:
+        """Needed energy terms in the system."""
+        return ("demag",)
+
+    @property
+    def _supported_energy_terms(self) -> tuple[str]:
+        """Supported energy terms in the system."""
+        return ("exchange", "uniaxialanisotropy", "demag")
 
     def _checkargs(self, kwargs: dict[str, Any]) -> None:
         """Validate and convert hysteresis arguments to TOMMOS parameters."""
