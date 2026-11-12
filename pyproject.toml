@@ -92,7 +92,6 @@ pytest-cov = "*"
 ruff = "*"
 towncrier = "*"
 twine = "*"
-neper = "*"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
