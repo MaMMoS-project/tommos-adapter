@@ -34,7 +34,7 @@ def create_mesh(
     """
     if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly_gb"]:
         raise ValueError(
-            "Argument `geom` must be one between 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', or "
+            "Argument `geom` must be one of 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', or "
             f"'poly_gb'. Got {geom}."
         )
 
