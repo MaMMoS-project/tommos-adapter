@@ -97,7 +97,6 @@ def set_magnetization(
     m: tuple,
     Ms: numbers.Real,
     mesh_unit_length: numbers.Real = 1e-9,
-    mat_names_prefix: str = "grain_",
 ) -> pyvista.UnstructuredGrid:
     """Set values to initial magnetization.
 
@@ -109,7 +108,6 @@ def set_magnetization(
         m: single magnetization array to spread to all mesh points.
         Ms: single spontaneous magnetization value to spread to all mesh cells.
         mesh_unit_length: Mesh unit length. Default value assumes we are working in the nanoscale.
-        mat_names_prefix: Name prefix for all materials.
 
     Returns:
         Mesh with set values.
@@ -141,7 +139,7 @@ def set_magnetization(
         raise ValueError(f"Argument `mesh_unit_length` must be a positive finite real number. Got {mesh_unit_length}.")
     mesh.field_data["mesh_unit_length"] = mesh_unit_length
 
-    mesh.field_data["mat_names"] = [f"{mat_names_prefix}{i}" for i in mesh.field_data["mat_ids"]]
+    mesh.field_data["mat_names"] = [f"grain_{i}" for i in mesh.field_data["mat_ids"]]
 
     return mesh
 
