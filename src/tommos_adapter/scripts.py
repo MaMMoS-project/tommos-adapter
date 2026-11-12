@@ -279,7 +279,7 @@ def p2_script(
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
         raise ValueError(f"tol_fun must be a positive finite number, got {tol_fun!r}.")
-    if mstep is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
+    if mstep is not None and (not isinstance(mstep, Real) or not np.isfinite(mstep) or mstep <= 0):
         raise ValueError(f"mstep must be a positive finite number, got {mstep!r}.")
     if method != "" and (not isinstance(method, str) or method not in ["pcohen_hs", "tr"]):
         raise ValueError(f"method must be a string between 'pcohen_hs' and 'tr', got {method!r}.")
@@ -443,11 +443,12 @@ def _energy_terms(system: mm.System) -> dict[type, object]:
 
 def _scalar_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
-        missing = sorted(set(region_names) - set(value))
-        extra = sorted(set(value) - set(region_names))
+        keys = set(value)
+        missing = [] if "default" in value else sorted(set(region_names) - keys)
+        extra = sorted(keys - set(region_names) - {"default"})
         if missing or extra:
             raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] for name in region_names]
+        values = [value[name] if name in value else value["default"] for name in region_names]
     else:
         values = [value] * len(region_names)
 
@@ -462,11 +463,12 @@ def _scalar_values(value: object, region_names: list[str], *, parameter: str) ->
 
 def _vector_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
-        missing = sorted(set(region_names) - set(value))
-        extra = sorted(set(value) - set(region_names))
+        keys = set(value)
+        missing = [] if "default" in value else sorted(set(region_names) - keys)
+        extra = sorted(keys - set(region_names) - {"default"})
         if missing or extra:
             raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] for name in region_names]
+        values = [value[name] if name in value else value["default"] for name in region_names]
     else:
         values = [value] * len(region_names)
 

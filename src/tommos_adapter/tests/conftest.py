@@ -3,10 +3,13 @@
 import shlex
 import subprocess
 
+import mammos_entity as me
 import micromagneticmodel as mm
 import numpy as np
 import pytest
 import pyvista as pv
+
+from tommos_adapter import HysteresisDriver
 
 
 @pytest.fixture(scope="session")
@@ -40,3 +43,76 @@ def state_zero(mesh):
     state.point_data["m"] = m
     state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
     return state
+
+
+@pytest.fixture(scope="session")
+def tommos_simulation(tmp_path_factory):
+    """Run a small two-step tommos simulation once per test session."""
+    output_directory = tmp_path_factory.mktemp("tommos_simulation")
+    subprocess.run(
+        ["tommos", "mesh", "--geom", "box", "--extent", "2,2,2", "--h", "2", "--out-name", "table"],
+        cwd=output_directory,
+        check=True,
+    )
+    grid = pv.read(output_directory / "table.vtu")
+    grid.points *= 1e-9
+    grid.cell_data["region_id"] = grid.cell_data.pop("mat_id")
+    grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
+    grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
+
+    system = mm.System(name="table_output", m=grid)
+    system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(1, 0, 0)) + mm.Demag()
+    HysteresisDriver().drive(
+        system,
+        dirname=output_directory,
+        append=False,
+        verbose=0,
+        h_direction=(0, 0, 1),
+        h_start=0.5,
+        h_final=1,
+        n=2,
+    )
+    return system, output_directory
+
+
+@pytest.fixture(scope="session")
+def tiny_mesh(data_dir):
+    """Define very small mesh.
+
+    The mesh is a cube of side length 2nm with 2nm mesh size.
+
+    The default magnetization is uniform and set to (0, 0, 1). The saturation magnetization
+    corresponds to a spontaneous polarization of 1 T everywhere.
+
+    This magnetization can be used in tests with calls to drivers where the physical result is not important.
+    """
+    cmd = "tommos mesh --geom box --extent 2,2,2 --h 2 --out-name tiny"
+    subprocess.run(shlex.split(cmd), cwd=data_dir)
+    m = pv.read(data_dir / "tiny.vtu")
+    m.points *= 1e-9
+    id_array = m.get_array("mat_id")
+    m.cell_data["region_id"] = id_array
+    m.cell_data.remove("mat_id")
+    m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
+    m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
+    return m
+
+
+@pytest.fixture
+def write_mammos_table():
+    """Return a factory writing synthetic TOMMOS tabular output."""
+
+    def _write(filename):
+        collection = me.EntityCollection(
+            description="Synthetic TOMMOS hysteresis output.",
+            config=me.Entity("Index", [0, 1, 2]),
+            B_ext_T=me.Entity("MagneticFluxDensity", [-1, 0, 1], "T"),
+            J_par_T=me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T"),
+            E=me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3"),
+            gnorm=me.Entity("EnergyDensity", [400, 40, 4], "J / m3"),
+            additional_column=[7, 8, 9],
+        )
+        collection.to_csv(filename)
+        return filename
+
+    return _write
