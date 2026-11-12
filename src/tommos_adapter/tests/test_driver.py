@@ -439,14 +439,17 @@ def test_check_system_requires_grid_data(state_zero, association, name, error_me
     "field_data, error, error_message",
     [
         (None, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
-        ({"mat_ids": "TODO"}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
-        ({"mat_names": "TODO"}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_ids": [1, 2]}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_names": ["grain_1", "grain_2"]}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
     ],
 )
 def test_check_multigrain_field_data(state_zero, field_data, error, error_message):
     """Check field data consistency for multirgain materials."""
     state = state_zero.copy()
     state.cell_data["mat_id"][-1] = 2
+    if field_data is not None:
+        for key, value in field_data.items():
+            state.field_data[key] = value
     system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=state)
     with pytest.raises(error, match=error_message):
         ta.HysteresisDriver()._check_system(system)
