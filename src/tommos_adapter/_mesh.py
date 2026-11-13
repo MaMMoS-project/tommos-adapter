@@ -25,8 +25,9 @@ def create_mesh(
     extent: collections.abc.Sequence[numbers.Real],
     h: numbers.Real,
     out_name: os.PathLike,
-    *,
     additional_arguments: str = "",
+    mesh_unit_length: numbers.Real = 1e-9,
+    mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
 ) -> pyvista.UnstructuredGrid:
     """Create mesh using `tommos mesh`.
 
@@ -37,6 +38,10 @@ def create_mesh(
         out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
             will be read using Pyvista.
         additional_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...` command.
+        mesh_unit_length: Mesh unit length indicating a scaling factor in meter. The default value 1e-9 means we
+            assume nanometer scale unless specified otherwise.
+        mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
+            set as `grain_1`, `grain_2`, etc.
 
     Returns:
         Mesh read from the created `.vtu` file.
@@ -89,7 +94,20 @@ def create_mesh(
         capture_output=True,
     )
     res.check_returncode()
-    return pv.read(out_name.with_suffix(".vtu"))
+    mesh = pv.read(out_name.with_suffix(".vtu"))
+    return read_mesh(mesh, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping)
+
+
+def read_mesh(
+    mesh: pyvista.UnstructuredGrid,
+    mesh_unit_length: numbers.Real = 1e-9,
+    mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
+) -> pyvista.UnstructuredGrid:
+    """Read mesh using `tommos mesh`.
+
+    TODO: args, returns, raises
+    """
+    pass  # TODO: body
 
 
 def _read_magnetization_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
