@@ -42,7 +42,7 @@ def test_plugin_reads_simulation_results(drive, tommos_simulation):
         assert isinstance(grid, pv.UnstructuredGrid)
         np.testing.assert_array_equal(grid.points, expected_points)
         np.testing.assert_array_equal(grid.cells, system.m.cells)
-        np.testing.assert_array_equal(grid.cell_data["region_id"], system.m.cell_data["region_id"])
+        np.testing.assert_array_equal(grid.cell_data["mat_id"], system.m.cell_data["mat_id"])
         np.testing.assert_array_equal(grid.cell_data["Ms"], system.m.cell_data["Ms"])
 
     np.testing.assert_array_equal(initial_grid.point_data["m"], np.tile((1, 0, 0), (system.m.n_points, 1)))

@@ -204,7 +204,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
-    assert "size = 1.0000000000000001e-09" in p2_text
+    assert "size = 1e-09" in p2_text
     saved_initial = pv.read(tmp_path / "m0.vtu")
     np.testing.assert_array_equal(saved_initial.points, input_points)
     np.testing.assert_array_equal(system.m.points, input_points)
@@ -257,11 +257,9 @@ def test_call_passes_progress_information():
 def _write_tommos_output(state, output_file, magnetization):
     """Write a minimal VTU file matching TOMMOS output."""
     output_state = state.copy()
-    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
     output_state.point_data["U"] = np.zeros(state.n_points)
-    output_state.cell_data["mat_id"] = state.cell_data["region_id"]
     output_state.save(output_file)
 
 
@@ -273,7 +271,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammo
     state.cell_data["region"] = np.arange(state.n_cells)
     system = mm.System(name="read_data", m=state)
     original_state = system.m
-    original_region_id = state.cell_data["region_id"].copy()
+    original_mat_id = state.cell_data["mat_id"].copy()
     original_Ms = state.cell_data["Ms"].copy()
     original_region = state.cell_data["region"].copy()
     original_point_data = state.point_data["custom_point_data"].copy()
@@ -290,7 +288,7 @@ def test_read_data_updates_system(state_zero, tmp_path, monkeypatch, write_mammo
     assert system.m is original_state
     np.testing.assert_array_equal(system.m.point_data["m"], np.tile((0, 1, 0), (state.n_points, 1)))
     np.testing.assert_array_equal(system.m.point_data["custom_point_data"], original_point_data)
-    np.testing.assert_array_equal(system.m.cell_data["region_id"], original_region_id)
+    np.testing.assert_array_equal(system.m.cell_data["mat_id"], original_mat_id)
     np.testing.assert_array_equal(system.m.cell_data["Ms"], original_Ms)
     np.testing.assert_array_equal(system.m.cell_data["region"], original_region)
     assert system.table.x == "B_hysteresis"
@@ -324,7 +322,7 @@ def test_read_data_drops_airbox(state_zero, tmp_path, monkeypatch, write_mammos_
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
-    points = np.vstack([state.points / ta.scripts.DEFAULT_MESH_UNIT, airbox_points]).astype(np.float32)
+    points = np.vstack([state.points, airbox_points]).astype(np.float32)
     magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
     connectivity = np.vstack([state.cell_connectivity.reshape(-1, 4), np.arange(4) + state.n_points])
     order = np.random.default_rng(1).permutation(len(points))
@@ -367,7 +365,6 @@ def test_read_data_rejects_invalid_output(state_zero, tmp_path, monkeypatch, inv
     magnetization_before_read = state.point_data["m"].copy()
 
     output_state = state.copy()
-    output_state.points /= ta.scripts.DEFAULT_MESH_UNIT
     if invalid_output == "missing_m":
         output_state.point_data.remove("m")
         error_message = "does not contain point data 'm'"
@@ -461,8 +458,9 @@ def test_check_system_energies_unsupported_parameters(state_zero):
     "association, name, error_message",
     [
         ("point_data", "m", "magnetization array 'm' is missing"),
-        ("cell_data", "region_id", "material array 'region_id' is missing"),
+        ("cell_data", "mat_id", "material array 'mat_id' is missing"),
         ("cell_data", "Ms", "material array 'Ms' is missing"),
+        ("field_data", "mesh_unit_length", "'mesh_unit_length' is missing"),
     ],
 )
 def test_check_system_requires_grid_data(state_zero, association, name, error_message):
@@ -473,6 +471,26 @@ def test_check_system_requires_grid_data(state_zero, association, name, error_me
     system = mm.System(name="test_missing_grid_data", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=state)
 
     with pytest.raises(RuntimeError, match=error_message):
+        ta.HysteresisDriver()._check_system(system)
+
+
+@pytest.mark.parametrize(
+    "field_data, error, error_message",
+    [
+        (None, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_ids": [1, 2]}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+        ({"mat_names": ["grain_1", "grain_2"]}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
+    ],
+)
+def test_check_multigrain_field_data(state_zero, field_data, error, error_message):
+    """Check field data consistency for multirgain materials."""
+    state = state_zero.copy()
+    state.cell_data["mat_id"][-1] = 2
+    if field_data is not None:
+        for key, value in field_data.items():
+            state.field_data[key] = value
+    system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=state)
+    with pytest.raises(error, match=error_message):
         ta.HysteresisDriver()._check_system(system)
 
 
