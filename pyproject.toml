@@ -23,6 +23,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+  "mammos-analysis>=0.6",
   "mammos-entity>=0.14",
   "micromagneticdata @ git+https://github.com/ubermag/micromagneticdata.git@master",
   "numpy",
@@ -92,6 +93,8 @@ pytest-cov = "*"
 ruff = "*"
 towncrier = "*"
 twine = "*"
+neper = ">=5.0.0,<6"
+trame-jupyter-extension = ">=2.1.4,<3"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
