@@ -162,7 +162,27 @@ def read_mesh(
 
     TODO: args, returns, raises
     """
-    pass  # TODO: body
+    if "mat_id" not in mesh.cell_data:
+        pass  # TODO: check mat_id makes sense
+    else:
+        pass  # TODO: `mat_id` not in `cell_data`
+
+    mesh.field_data["mat_ids"] = np.unique(mesh.cell_data["mat_id"])
+
+    if len(mesh.field_data["mat_ids"]) > 1:
+        # TEMP: only allow single grain
+        raise NotImplementedError("Function `read_mesh` does not support multigrain materials yet.")
+
+    if not (isinstance(mesh_unit_length, numbers.Real) and mesh_unit_length > 0 and np.isfinite(mesh_unit_length)):
+        raise ValueError(f"Argument `mesh_unit_length` must be a positive finite real number. Got {mesh_unit_length}.")
+    mesh.field_data["mesh_unit_length"] = mesh_unit_length
+
+    if mat_id_name_mapping is None:
+        mesh.field_data["mat_names"] = [f"grain_{i}" for i in mesh.field_data["mat_ids"]]
+    else:
+        pass  # TODO: check and apply mapping
+
+    return mesh
 
 
 def _read_magnetization_grid(filename: str | os.PathLike) -> pv.UnstructuredGrid:
