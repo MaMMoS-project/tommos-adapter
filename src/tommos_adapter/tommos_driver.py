@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import discretisedfield as df
 import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
@@ -32,7 +33,7 @@ class Driver(mm.adapter_base.ExternalDriver):
     """Driver base class.
 
     This class is not supposed to be instantiated directly.
-    Please use ``HysteresisDriver`` instead.
+    Please use ``MinDriver`` or ``HysteresisDriver`` instead.
     """
 
     _allowed_attributes = ["mstep", "method", "max_iter", "tol_fun", "eps_a", "num_devices"]
@@ -257,6 +258,93 @@ class Driver(mm.adapter_base.ExternalDriver):
     @property
     def _x(self) -> str:
         return "B_hysteresis"
+
+
+class MinDriver(Driver):
+    """Driver to relax a micromagnetic system.
+
+    The minimization is executed when calling :meth:`drive` or :meth:`schedule` and no arguments are needed in these
+    methods. It is possible to define a Zeeman energy term and define the external field in the ``H`` argument.
+
+    Examples:
+        1. Defining a driver.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> md = ta.MinDriver()
+
+        2. Passing an argument which is not allowed.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> md = ta.MinDriver(myarg=1)
+        Traceback (most recent call last):
+           ...
+        AttributeError: ...
+
+        3. Getting the list of allowed attributes.
+
+        >>> import tommos_adapter as ta
+        ...
+        >>> md = ta.MinDriver()
+        >>> md._allowed_attributes
+        [...]
+
+    """
+
+    _needed_energy_terms = (mm.Demag,)
+    _supported_energy_terms = (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag, mm.Zeeman)
+
+    def _checkargs(self, kwargs: dict[str, Any]) -> None:
+        """Validate driver arguments."""
+        if {"h_direction", "h_start", "h_final", "n"}.intersection(kwargs):
+            raise TypeError(
+                "Arguments `h_direction`, `h_start`, `h_final`, `n` are not supported in `MinDriver`. "
+                f"Given arguments: {kwargs}"
+            )
+
+    def _get_required_p2_arguments(self, system: micromagneticmodel.System, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Get arguments that are required for the ``p2`` input file.
+
+        If the system has a Zeeman energy, the ``MinDriver`` needs to convert the external field into a
+        field protocol understandable by ``tommos``.
+
+        - ``hx``: ``x`` component in Cartesian coordinates of applied field axis.
+        - ``hy``: ``y`` component in Cartesian coordinates of applied field axis.
+        - ``hz``: ``z`` component in Cartesian coordinates of applied field axis.
+        - ``hstart``: Start field magnitude in Tesla.
+        - ``hfinal``: Final field magnitude in Tesla.
+
+        The parameter ``hstep`` is set to 1 internally because ``tommos`` always requires a non-zero field step.
+
+        If the system does not have a Zeeman energy, the start and final field magnitude are set to zero and the
+        Cartesian coordinates are not set.
+
+        Args:
+            system: Micromagnetic system.
+            kwargs: Given keyword arguments.
+
+        Returns:
+            Dictionary of parsed required argument for the `p2` input file.
+        """
+        if energy := system.energy.get(type=mm.Zeeman):
+            zeeman = energy[0]  # this catches the Zeeman energy without knowing the name
+            if callable(zeeman.func) or isinstance(zeeman.func, str):
+                raise ValueError(f"Changing external field is not supported. Given {zeeman=}.")
+
+            H = zeeman.H
+            if isinstance(H, dict):
+                raise ValueError(f"Multi-domain external field is not supported. Given {H=}.")
+            elif isinstance(H, df.Field):
+                raise ValueError(f"External field given as a `discretisedfield.Field` is not supported. Given {H=}.`")
+            else:
+                H_norm = np.linalg.norm(H)
+                h = np.array(H) / H_norm if H_norm else np.array(H)
+                hx, hy, hz = h
+                H_norm *= mm.consts.mu0
+                return {"hx": hx, "hy": hy, "hz": hz, "hstart": H_norm, "hfinal": H_norm}
+        else:
+            return {"hstart": 0.0, "hfinal": 0.0}
 
 
 class HysteresisDriver(Driver):
