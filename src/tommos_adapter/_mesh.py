@@ -29,7 +29,62 @@ def create_mesh(
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
 ) -> pyvista.UnstructuredGrid:
-    """Create mesh using `tommos mesh`.
+    r"""Create and read mesh using `tommos mesh`.
+
+    This function creates a mesh with the following attributes:
+
+    - `m` (point-wise): defines the initial magnetization on each mesh node.
+    - `Ms` (cell-wise): defines the spontaneous magnetization intrinsic magnetic property on each cell in `A/m`.
+    - `mat_id` (cell-wise): defines the material or region integer ID. Different IDs define separated regions rather
+      than different materials, i.e. they can have the same magnetic properties.
+    - `mesh_unit_length` (field-wise): mesh unit length or scaling factor in terms of meters.
+    - `mat_ids` (field-wise): list of all possible material IDs.
+    - `mat_names` (field-wise): list of names of all material region.
+
+    The mesh is created via the `tommos mesh` CLI tool. Argument `geom` is the type of geometry, `h` is the mesh size,
+    `out_name` is the name or path where the mesh file will be saved. The argument `extent` means different thing for
+    each geometry shape:
+
+    - if `geom="box"`, the geometry is a parallelepiped where the three real numbers `extent=(Lx, Ly, Lz)` define the
+      three side lengths. The geometry is then centred in the origin, so that the all geometry points
+      :math:`(x, y, z)` satisfy:
+
+      .. math::
+        |x| \le L_\mathsf{x}/2, \\
+        |y| \le L_\mathsf{y}/2, \\
+        |z| \le L_\mathsf{z}/2.
+
+    - if `geom="ellipsoid"`, the geometry is an ellipsoid with rotational symmetry in the xy-plane, centred in the
+      origin. The three real numbers `extent=(Lx, Ly, Lz)` are a linear transformation of the semi-axes, and the
+      geometry points :math:`(x, y, z)` satisfy:
+
+      .. math::
+        \left(\frac{x}{a}\right)^2 + \left(\frac{y}{b}\right)^2 + \left(\frac{z}{c}\right^2 \le 1,
+
+      where:
+
+      .. math::
+        a = \frac{L_\mathsf{x} + L_\mathsf{y}}/4, \\
+        b = \frac{L_\mathsf{x} + L_\mathsf{y}}/4, \\
+        c = \frac{L_\mathsf{z}}/4.
+
+    - if `geom="eye"`, the projection in the xy-plane is an "eye" shape formed by two symmetric Bézier curves, extruded
+      in the z dimension. The three real numbers `extent=(l, h, Lz)` are the full eye length, the eye half-height, and
+      the width in the z dimension, respectively, and the geometry points :math:`(x, y, z)` satisfy:
+
+      .. math:
+        y \le -2 \frac{h}{l^2} x + \frac{h}{2}, \\
+        |z| \le L_\mathsf{z}.
+
+    - of `geom="elliptic_cylinder"`, the geometry is a cylinder whose faces in the xy-planes are ellipses, centred in
+      the origin. The three real numbers `extent=(A, B, Lz)` are the major axes of the ellipse in the xy-plane and the
+      width in the z dimension, and the geometry points :math:`(x, y, z)` satisfy:
+
+      .. math:
+        \left(\frac{x}{A/2}\right)^2 + \right(\frac{y}{B/2}\right)^2 \le 1, \\
+        |z| \le L_\mathsf{z}.
+
+    For more information regarding `tommos mesh`, see https://github.com/MaMMoS-project/tommos#tommos-mesh-meshing-tool.
 
     Args:
         geom: String specifying the geometry. Possible choices are 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'.
