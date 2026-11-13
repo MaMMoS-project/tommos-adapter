@@ -23,7 +23,7 @@ classifiers = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-  "mammos-entity>=0.14",
+  "mammos-entity>=0.13",
   "micromagneticdata @ git+https://github.com/ubermag/micromagneticdata.git@master",
   "numpy",
   "tommos @ https://github.com/MaMMoS-project/tommos.git",
@@ -56,7 +56,6 @@ allow-direct-references = true  # keep true as long as we are using direct depen
 target-version = "py311"
 exclude = [
   "dev",
-  "examples/hard-magnet-tutorial.ipynb",
 ]
 line-length = 120
 [tool.ruff.lint]
@@ -75,6 +74,7 @@ pydocstyle.convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "*.ipynb" = ["B018"]  # "Found useless expression. Either assign it to a variable or remove it."; false positives when using implicit __repr__ in the notebook
 "src/tommos_adapter/tests/*" = ["D100", "D103"]  # do not enforce docstrings in tests
+"examples/*" = ["D103"]  # do not enforce docstrings in notebooks
 
 [tool.pixi.workspace]
 channels = [ "conda-forge" ]
@@ -82,6 +82,7 @@ platforms = [ "osx-arm64", "linux-64", "osx-64" ]
 
 [tool.pixi.dependencies]
 python = "==3.11"
+mammos = "==0.13.0"
 hatch = "*"
 ipython = "*"
 jupyterlab = ">3"
@@ -95,6 +96,7 @@ twine = "*"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
+trame-pyvista = "*"
 
 [tool.pixi.tasks]
 build-dists = {cmd="rm -rf dist && hatch build -t sdist -t wheel && twine check dist/*", description="Build and check sdist and wheel."}
@@ -102,7 +104,7 @@ coverage = {cmd="pytest -v --cov src/tommos_adapter --cov-report xml", descripti
 examples = "jupyter-lab examples"
 test-unittest = {cmd="python -c 'import tommos_adapter; raise SystemExit(tommos_adapter.test())'", description="Run unittests."}
 test-docstrings = {cmd="pytest -vv --doctest-modules src/tommos_adapter --ignore=src/tommos_adapter/tests", description="Run doctests."}
-test-notebooks = {cmd="pytest -vv --nbval-lax examples -k 'not hard-magnet-tutorial'", description="Test notebooks"}
+test-notebooks = {cmd="pytest -vv --nbval-lax examples", description="Test notebooks"}
 test-all = {depends-on=["test-unittest", "test-docstrings", "test-notebooks"], description="Run all tests."}
 style = "pre-commit run --all-files"
 
