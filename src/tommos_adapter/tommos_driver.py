@@ -212,6 +212,8 @@ class Driver(mm.adapter_base.ExternalDriver):
         for term in system.energy:
             if type(term) not in self._supported_energy_terms:
                 raise ValueError(f"Energy term {term!r} is not supported by this driver.")
+            if len(system.energy.get(type=type(term))) > 1:
+                raise ValueError(f"Multiple energy terms of type {type(term)} are not supported.")
             if isinstance(term, mm.Demag) and hasattr(term, "asymptotic_radius"):
                 raise RuntimeError(
                     f"Attribute `asymptotic_radius` is not supported. Given value: {term.asymptotic_radius}."

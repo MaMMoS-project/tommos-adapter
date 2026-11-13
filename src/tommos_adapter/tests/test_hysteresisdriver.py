@@ -412,6 +412,18 @@ def test_check_system_unsupported_energies(state_zero):
         hd._check_system(system)
 
 
+def test_check_system_multiple_energies_of_same_type(state_zero):
+    """Test that `HysteresisDriver` does not support multiple energy terms of the same type."""
+    system = mm.System(name="test_unsupported_energies")
+    state = state_zero.copy()
+    state.point_data["m"][:, 0] = 1
+    system.m = state
+    system.energy = mm.Demag() + mm.Exchange(A=1e-12) + mm.Exchange(name="different_exchange", A=2e-12)
+    hd = ta.HysteresisDriver()
+    with pytest.raises(ValueError, match=f"Multiple energy terms of type {type(mm.Exchange())} are not supported"):
+        hd._check_system(system)
+
+
 def test_check_system_missing_magnetization():
     """A system without magnetization is invalid."""
     system = mm.System(name="test_missing_magnetization")
