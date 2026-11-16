@@ -19,27 +19,36 @@ def data_dir(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def mesh(data_dir):
+def cube_20_path(data_dir):
     """Define a cubic mesh of side length 20 and mesh size 2."""
-    cmd = "tommos mesh --geom box --extent 20,20,20 --h 2 --out-name test"
+    cmd = "tommos mesh --geom box --extent 20,20,20 --h 2 --out-name cube_20"
     subprocess.run(shlex.split(cmd), cwd=data_dir)
-    return {k: data_dir / f"test.{k}" for k in ["vtu", "npz"]}
+    return data_dir / "cube_20.vtu"
 
 
-@pytest.fixture(scope="session")
-def state_zero(mesh):
-    """Define basic micromagnetic state.
+@pytest.fixture(scope="function")
+def mesh_cube_20(cube_20_path):
+    """Read mesh of cube of side length 20.
+
+    This fixture has 'function' scope, while the fixture creating the cubic mesh has 'session' scope.
+    Therefore, the mesh creation only happens once per `pytest` call, while this function gets called
+    for each test, allowing mesh modifications in any test without modifying the mesh stored on disk.
+    """
+    return pv.read(cube_20_path)
+
+
+@pytest.fixture(scope="function")
+def m_cube_20_zero(mesh_cube_20):
+    """Initialize zero magnetization on cube of side length 20.
 
     The default magnetization is zero everywhere and the user needs to specify a physical
     magnetization in the tests. The saturation magnetization corresponds to
     a spontaneous polarization of 1 T everywhere.
     """
-    state = pv.read(mesh["vtu"])
-    m = np.zeros((state.n_points, 3), dtype=np.float32)
-    state.point_data["m"] = m
-    state.cell_data["Ms"] = np.full(state.n_cells, 1 / mm.consts.mu0)
-    state.field_data["mesh_unit_length"] = 1e-9
-    return state
+    mesh_cube_20.point_data["m"] = np.zeros((mesh_cube_20.n_points, 3), dtype=np.float32)
+    mesh_cube_20.cell_data["Ms"] = np.full(mesh_cube_20.n_cells, 1 / mm.consts.mu0)
+    mesh_cube_20.field_data["mesh_unit_length"] = 1e-9
+    return mesh_cube_20
 
 
 @pytest.fixture(scope="session")
@@ -72,22 +81,31 @@ def tommos_simulation(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def tiny_mesh(data_dir):
-    """Define very small mesh.
+def cube_tiny_path(data_dir):
+    """Create very small cubic mesh.
 
     The mesh is a cube of side length 2nm with 2nm mesh size.
 
-    The default magnetization is uniform and set to (0, 0, 1). The saturation magnetization
-    corresponds to a spontaneous polarization of 1 T everywhere.
-
-    This magnetization can be used in tests with calls to drivers where the physical result is not important.
+    This mesh can be used in tests with calls to drivers where the physical result is not important.
     """
     cmd = "tommos mesh --geom box --extent 2,2,2 --h 2 --out-name tiny"
     subprocess.run(shlex.split(cmd), cwd=data_dir)
-    m = pv.read(data_dir / "tiny.vtu")
+    return data_dir / "tiny.vtu"
+
+
+@pytest.fixture(scope="function")
+def m_tiny(cube_tiny_path):
+    """Initialize uniform magnetization on a very small cube.
+
+    The default magnetization is uniform and set to (0, 0, 1). The saturation magnetization
+    corresponds to a spontaneous polarization of 1 T everywhere.
+    """
+    m = pv.read(cube_tiny_path)
     m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
     m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
     m.field_data["mesh_unit_length"] = 1e-9
+    m.field_data["mat_ids"] = np.unique(m.cell_data["mat_id"])
+    m.field_data["mat_names"] = ["grain_1"]
     return m
 
 

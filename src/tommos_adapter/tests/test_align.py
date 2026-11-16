@@ -8,7 +8,7 @@ import tommos_adapter as ta
 
 
 @pytest.mark.parametrize("theta_deg, phi_deg", [(0, 0), (45, 45), (135, 135)])
-def test_align_external_field(state_zero, tmp_path, theta_deg, phi_deg):
+def test_align_external_field(m_cube_20_zero, tmp_path, theta_deg, phi_deg):
     """Test alignment with external field."""
     # Intrinsic properties
     Js = 1.76
@@ -22,14 +22,11 @@ def test_align_external_field(state_zero, tmp_path, theta_deg, phi_deg):
     )
     h_field = np.array(h_direction) / mm.consts.mu0
 
-    # Read mesh and define magnetization
-    state = state_zero.copy()
-    state.point_data["m"][:, [1, 2]] = 1 / np.sqrt(2)
-    state.cell_data["Ms"] *= Js
-
     # Define micromagnetic system
     system = mm.System(name="test_align")
-    system.m = state
+    system.m = m_cube_20_zero
+    system.m.point_data["m"][:, [1, 2]] = 1 / np.sqrt(2)
+    system.m.cell_data["Ms"] *= Js
 
     # Define energies
     system.energy = mm.Exchange(A=A) + mm.Zeeman(H=h_field) + mm.Demag()
@@ -44,7 +41,7 @@ def test_align_external_field(state_zero, tmp_path, theta_deg, phi_deg):
 
 
 @pytest.mark.parametrize("theta_deg, phi_deg", [(0, 0), (45, 45), (135, 135)])
-def test_align_anisotropy_axis(state_zero, tmp_path, theta_deg, phi_deg):
+def test_align_anisotropy_axis(m_cube_20_zero, tmp_path, theta_deg, phi_deg):
     """Test alignment with anisotropy axis."""
     # Intrinsic properties
     Js = 1.76
@@ -59,7 +56,7 @@ def test_align_anisotropy_axis(state_zero, tmp_path, theta_deg, phi_deg):
     )
 
     # Read mesh and define magnetization
-    state = state_zero.copy()
+    state = m_cube_20_zero.copy()
     state.point_data["m"][:, [1, 2]] = 1 / np.sqrt(2)
     state.cell_data["Ms"] *= Js
 
