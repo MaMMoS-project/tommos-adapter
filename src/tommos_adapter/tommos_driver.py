@@ -76,7 +76,7 @@ class Driver(mm.adapter_base.ExternalDriver):
 
     def _write_input_files(self, system: micromagneticmodel.System, **kwargs: Any) -> None:
         """Write input files."""
-        mesh = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
+        mesh = scripts.mesh_data(system)
         np.savez(f"{system.name}.npz", **mesh)
         system.m.save("m0.vtu")
         Path(f"{system.name}.krn").write_text(scripts.krn_script(system), encoding="utf-8")
@@ -86,7 +86,6 @@ class Driver(mm.adapter_base.ExternalDriver):
         Path(f"{system.name}.p2").write_text(
             scripts.p2_script(
                 system,
-                mesh_unit=scripts.DEFAULT_MESH_UNIT,
                 **p2_arguments,
             ),
             encoding="utf-8",
@@ -150,7 +149,7 @@ class Driver(mm.adapter_base.ExternalDriver):
         last_output_file = max(indexed_output_files, key=lambda item: item[0])[1]
         output_state = _read_magnetization_grid(last_output_file)
 
-        reference_points = scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)["knt"]
+        reference_points = scripts.mesh_data(system)["knt"]
         magnetization = _magnetization_at_reference_points(reference_points, output_state)
 
         table_file = output_directory / "mammos_hysteresis.csv"
@@ -225,9 +224,19 @@ class Driver(mm.adapter_base.ExternalDriver):
             raise TypeError("TOMMOS requires system.m to be a pyvista.UnstructuredGrid.")
         if "m" not in system.m.point_data:
             raise RuntimeError("The magnetization array 'm' is missing from system.m.point_data.")
-        for name in ("region_id", "Ms"):
+        for name in ("mat_id", "Ms"):
             if name not in system.m.cell_data:
                 raise RuntimeError(f"The material array '{name}' is missing from system.m.cell_data.")
+        if "mesh_unit_length" not in system.m.field_data:
+            raise RuntimeError("The scaling factor 'mesh_unit_length' is missing from system.m.field_data.")
+
+        if len(np.unique(system.m.cell_data["mat_id"])) > 1 and not {"mat_ids", "mat_names"}.issubset(
+            system.m.field_data
+        ):
+            raise RuntimeError(
+                "Field data 'mat_ids' and 'mat_names' are necessary for multigrain materials. "
+                f"Got field data: {system.m.field_data}."
+            )
 
         magnetization = np.asarray(system.m.point_data["m"])
         expected_shape = (system.m.n_points, 3)
@@ -249,7 +258,7 @@ class Driver(mm.adapter_base.ExternalDriver):
             raise RuntimeError(f"`tommos` supports only T=0 K. Given temperature: {system.T} K.")
 
         try:
-            scripts.mesh_data(system, mesh_unit=scripts.DEFAULT_MESH_UNIT)
+            scripts.mesh_data(system)
             scripts.krn_data(system)
         except (TypeError, ValueError) as error:
             raise RuntimeError(f"System cannot be translated to TOMMOS input: {error}") from error

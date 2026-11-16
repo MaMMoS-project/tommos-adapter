@@ -7,13 +7,18 @@ independently from a driver and from the TOMMOS executable.
 The provisional unstructured-grid contract is:
 
 * ``point_data["m"]`` contains the nodal magnetisation directions.
-* ``cell_data["region_id"]`` contains one region identifier per tetrahedron.
+* ``cell_data["mat_id"]`` contains one material identifier per tetrahedron.
 * ``cell_data["Ms"]`` contains the saturation magnetisation in A/m.
-* ``field_data["region_ids"]`` and ``field_data["region_names"]`` optionally
-  map numeric region identifiers to names used in parameter dictionaries.
+* ``field_data["mesh_unit_length"]`` contains the mesh unit length.
+* ``field_data["mat_ids"]`` and ``field_data["mat_names"]`` map numeric material
+  identifiers to names used in parameter dictionaries. They are optional for singlegrain
+  materials and mandatory for multigrain.
 
-TOMMOS material identifiers are contiguous and one-based.  Source region
+TOMMOS material identifiers are contiguous and one-based. Source material
 identifiers are therefore remapped when mesh data are generated.
+
+Terms `material` and `mat` do not indicate necessarily different materials,
+but rather different regions with potentially different magnetic parameters.
 """
 
 from __future__ import annotations
@@ -27,35 +32,27 @@ import micromagneticmodel as mm
 import numpy as np
 import pyvista as pv
 
-DEFAULT_MESH_UNIT = 1e-9
-
 
 @dataclass(frozen=True)
-class _Region:
-    """Region information required by the TOMMOS input formats."""
+class _Material:
+    """Material information required by the TOMMOS input formats."""
 
     name: str
     source_id: int
-    material_id: int
+    mat_id: int
 
 
 def mesh_data(
     system: mm.System,
     *,
-    mesh_unit: float = DEFAULT_MESH_UNIT,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
 ) -> dict[str, np.ndarray]:
     """Return TOMMOS ``knt`` and ``ijk`` arrays for a system.
-
-    Coordinates in an Ubermag model are assumed to be in metres.  ``knt`` is
-    scaled by ``mesh_unit`` because TOMMOS stores dimensionless mesh
-    coordinates and records the physical unit in the ``.p2`` file.
 
     Args:
         system: Micromagnetic system with a PyVista unstructured grid as
             magnetisation object.
-        mesh_unit: Physical length in metres represented by one mesh unit.
-        region_key: Name of the cell-data array containing region identifiers.
+        mat_key: Name of the cell-data array containing material identifiers.
 
     Returns:
         A dictionary with ``knt`` and ``ijk`` suitable for ``numpy.savez``.
@@ -63,25 +60,22 @@ def mesh_data(
     Raises:
         TypeError: If the magnetisation is not a PyVista unstructured grid.
         ValueError: If the grid is empty, contains non-tetrahedral cells, or
-            contains invalid region information.
+            contains invalid material information.
     """
-    if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
-        raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
-
     grid = _grid(system)
     connectivity = _tetra_connectivity(grid)
-    source_ids, regions = _regions(grid, region_key=region_key)
+    source_ids, materials = _materials(grid, mat_key=mat_key)
 
-    material_ids = np.empty(grid.n_cells, dtype=np.int32)
-    for region in regions:
-        material_ids[source_ids == region.source_id] = region.material_id
+    mat_ids = np.empty(grid.n_cells, dtype=np.int32)
+    for material in materials:
+        mat_ids[source_ids == material.source_id] = material.mat_id
 
     points = np.asarray(grid.points, dtype=np.float64)
     if not np.all(np.isfinite(points)):
         raise ValueError("Grid points must contain only finite values.")
 
-    ijk = np.column_stack((connectivity, material_ids)).astype(np.int64, copy=False)
-    return {"knt": points / float(mesh_unit), "ijk": ijk}
+    ijk = np.column_stack((connectivity, mat_ids)).astype(np.int64, copy=False)
+    return {"knt": points, "ijk": ijk}
 
 
 def initial_magnetisation(system: mm.System, *, key: str = "m") -> np.ndarray:
@@ -149,7 +143,7 @@ def needs_initial_state_file(system: mm.System, *, key: str = "m") -> bool:
 def krn_data(
     system: mm.System,
     *,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
     saturation_key: str = "Ms",
 ) -> np.ndarray:
     """Return the TOMMOS material table represented by a ``.krn`` file.
@@ -159,7 +153,7 @@ def krn_data(
 
     Args:
         system: Micromagnetic system to translate.
-        region_key: Name of the cell-data region array.
+        mat_key: Name of the cell-data material array.
         saturation_key: Name of the cell-data saturation-magnetisation array.
 
     Returns:
@@ -169,29 +163,29 @@ def krn_data(
         ValueError: If material parameters cannot be represented by TOMMOS.
     """
     grid = _grid(system)
-    source_ids, regions = _regions(grid, region_key=region_key)
-    region_names = [region.name for region in regions]
-    terms = {type(term): term for term in system.energy}
+    source_ids, materials = _materials(grid, mat_key=mat_key)
+    mat_names = [material.name for material in materials]
+    terms = _energy_terms(system)
 
     exchange = terms.get(mm.Exchange)
     if exchange is None:
-        exchange_values = np.zeros(len(regions))
+        exchange_values = np.zeros(len(materials))
     else:
-        exchange_values = _scalar_values(exchange.A, region_names, parameter="A")
+        exchange_values = _scalar_values(exchange.A, mat_names, parameter="A")
 
     anisotropy = terms.get(mm.UniaxialAnisotropy)
     if anisotropy is None:
-        anisotropy_values = np.zeros(len(regions))
-        easy_axes = np.tile((0.0, 0.0, 1.0), (len(regions), 1))
+        anisotropy_values = np.zeros(len(materials))
+        easy_axes = np.tile((0.0, 0.0, 1.0), (len(materials), 1))
     else:
-        anisotropy_values, easy_axes = _anisotropy_values(anisotropy, region_names)
+        anisotropy_values, easy_axes = _anisotropy_values(anisotropy, mat_names)
 
     theta = np.arccos(np.clip(easy_axes[:, 2], -1.0, 1.0))
     phi = np.arctan2(easy_axes[:, 1], easy_axes[:, 0])
     saturation = _saturation_values(
         grid,
         source_ids,
-        regions,
+        materials,
         saturation_key=saturation_key,
     )
 
@@ -200,7 +194,7 @@ def krn_data(
             theta,
             phi,
             anisotropy_values,
-            np.zeros(len(regions)),
+            np.zeros(len(materials)),
             mm.consts.mu0 * saturation,
             exchange_values,
         )
@@ -210,14 +204,14 @@ def krn_data(
 def krn_script(
     system: mm.System,
     *,
-    region_key: str = "region_id",
+    mat_key: str = "mat_id",
     saturation_key: str = "Ms",
 ) -> str:
     """Return the contents of a TOMMOS ``.krn`` material file.
 
     Args:
         system: Micromagnetic system to translate.
-        region_key: Name of the cell-data region array.
+        mat_key: Name of the cell-data material array.
         saturation_key: Name of the cell-data saturation-magnetisation array.
 
     Returns:
@@ -226,7 +220,7 @@ def krn_script(
     output = io.StringIO()
     np.savetxt(
         output,
-        krn_data(system, region_key=region_key, saturation_key=saturation_key),
+        krn_data(system, mat_key=mat_key, saturation_key=saturation_key),
         fmt="%.17g",
     )
     return output.getvalue()
@@ -241,7 +235,6 @@ def p2_script(
     hstart: Real,
     hfinal: Real,
     hstep: Real,
-    mesh_unit: float = DEFAULT_MESH_UNIT,
     max_iter: int | None = None,
     mstep: float | None = None,
     method: str = "",
@@ -262,7 +255,6 @@ def p2_script(
         hstart: Initial applied field in tesla.
         hfinal: Final applied field in tesla.
         hstep: Applied-field step in tesla.
-        mesh_unit: Physical length in metres represented by one mesh unit.
         max_iter: Optional maximum number of minimiser iterations.
         mstep: Magnetization change threshold for saving ``.vtu`` snapshots. Setting this to a very large value
             (e.g. 10000) prevents VTU outputs to save disk space.
@@ -273,8 +265,6 @@ def p2_script(
     Returns:
         INI-formatted TOMMOS parameter text.
     """
-    if not isinstance(mesh_unit, Real) or not np.isfinite(mesh_unit) or mesh_unit <= 0:
-        raise ValueError(f"mesh_unit must be a positive finite number, got {mesh_unit!r}.")
     if max_iter is not None and (not isinstance(max_iter, int) or isinstance(max_iter, bool) or max_iter <= 0):
         raise ValueError(f"max_iter must be a positive integer, got {max_iter!r}.")
     if tol_fun is not None and (not isinstance(tol_fun, Real) or not np.isfinite(tol_fun) or tol_fun <= 0):
@@ -299,7 +289,17 @@ def p2_script(
             "writing a restart VTU file is not implemented yet."
         )
 
-    lines = ["[mesh]", f"size = {_format_number(mesh_unit)}", "", "[initial state]"]
+    lines = ["[mesh]"]
+
+    mesh_unit_length = system.m.field_data["mesh_unit_length"]
+    if len(mesh_unit_length) != 1:
+        raise ValueError(f"Mesh unit length should be a single-valued field data. Got {mesh_unit_length}")
+    mul = mesh_unit_length[0]
+    if not isinstance(mul, Real) or not np.isfinite(mul) or mul <= 0:
+        raise ValueError(f"Mesh field data `mesh_unit_length` must be a positive finite number, got {mul!r}.")
+    lines.append(f"size = {mul}")
+
+    lines.extend(("", "[initial state]"))
     mx, my, mz = magnetisation[0]
     lines.extend(
         (
@@ -368,54 +368,54 @@ def _tetra_connectivity(grid: pv.UnstructuredGrid) -> np.ndarray:
     return connectivity
 
 
-def _regions(grid: pv.UnstructuredGrid, *, region_key: str) -> tuple[np.ndarray, list[_Region]]:
-    if region_key not in grid.cell_data:
-        raise ValueError(f"Grid cell_data does not contain {region_key!r}.")
+def _materials(grid: pv.UnstructuredGrid, *, mat_key: str) -> tuple[np.ndarray, list[_Material]]:
+    if mat_key not in grid.cell_data:
+        raise ValueError(f"Grid cell_data does not contain {mat_key!r}.")
 
-    raw_ids = np.asarray(grid.cell_data[region_key])
+    raw_ids = np.asarray(grid.cell_data[mat_key])
     if raw_ids.ndim == 2 and raw_ids.shape[1] == 1:
         raw_ids = raw_ids[:, 0]
     if raw_ids.shape != (grid.n_cells,):
-        raise ValueError(f"cell_data[{region_key!r}] must have shape {(grid.n_cells,)}, got {raw_ids.shape}.")
+        raise ValueError(f"cell_data[{mat_key!r}] must have shape {(grid.n_cells,)}, got {raw_ids.shape}.")
     if not np.issubdtype(raw_ids.dtype, np.integer):
-        raise ValueError(f"cell_data[{region_key!r}] must contain integer identifiers.")
+        raise ValueError(f"cell_data[{mat_key!r}] must contain integer identifiers.")
     source_ids = raw_ids.astype(np.int64, copy=False)
 
     unique_ids = np.unique(source_ids)
 
-    has_region_ids = "region_ids" in grid.field_data
-    has_region_names = "region_names" in grid.field_data
-    if has_region_ids != has_region_names:
-        raise ValueError("field_data must contain both 'region_ids' and 'region_names'.")
-    if has_region_ids:
-        metadata_ids = np.asarray(grid.field_data["region_ids"]).reshape(-1)
-        metadata_names = np.asarray(grid.field_data["region_names"]).reshape(-1)
+    has_mat_ids = "mat_ids" in grid.field_data
+    has_mat_names = "mat_names" in grid.field_data
+    if has_mat_ids != has_mat_names:
+        raise ValueError("field_data must contain both 'mat_ids' and 'mat_names'.")
+    if has_mat_ids:
+        metadata_ids = np.asarray(grid.field_data["mat_ids"]).reshape(-1)
+        metadata_names = np.asarray(grid.field_data["mat_names"]).reshape(-1)
         if metadata_ids.size != metadata_names.size:
-            raise ValueError("field_data['region_ids'] and field_data['region_names'] must have equal lengths.")
+            raise ValueError("field_data['mat_ids'] and field_data['mat_names'] must have equal lengths.")
         if not np.issubdtype(metadata_ids.dtype, np.integer):
-            raise ValueError("field_data['region_ids'] must contain integers.")
+            raise ValueError("field_data['mat_ids'] must contain integers.")
 
         metadata_ids = metadata_ids.astype(np.int64, copy=False)
         if np.unique(metadata_ids).size != metadata_ids.size:
-            raise ValueError("field_data['region_ids'] contains duplicate identifiers.")
+            raise ValueError("field_data['mat_ids'] contains duplicate identifiers.")
         names = [_as_string(name) for name in metadata_names]
         if len(set(names)) != len(names):
-            raise ValueError("field_data['region_names'] contains duplicate names.")
+            raise ValueError("field_data['mat_names'] contains duplicate names.")
         names_by_id = dict(zip(map(int, metadata_ids), names, strict=True))
         missing_ids = sorted(set(map(int, unique_ids)) - set(names_by_id))
         extra_ids = sorted(set(names_by_id) - set(map(int, unique_ids)))
         if missing_ids or extra_ids:
             raise ValueError(
-                f"Region metadata does not match the cell-data identifiers; missing={missing_ids}, extra={extra_ids}."
+                f"Material metadata does not match the cell-data identifiers; missing={missing_ids}, extra={extra_ids}."
             )
     else:
-        names_by_id = {int(region_id): f"region_{int(region_id)}" for region_id in unique_ids}
+        names_by_id = {int(mat_id): f"grain_{int(mat_id)}" for mat_id in unique_ids}
 
-    regions = [
-        _Region(name=names_by_id[int(source_id)], source_id=int(source_id), material_id=index)
+    materials = [
+        _Material(name=names_by_id[int(source_id)], source_id=int(source_id), mat_id=index)
         for index, source_id in enumerate(unique_ids, start=1)
     ]
-    return source_ids, regions
+    return source_ids, materials
 
 
 def _as_string(value: object) -> str:
@@ -424,42 +424,58 @@ def _as_string(value: object) -> str:
     return str(value)
 
 
-def _scalar_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
+def _energy_terms(system: mm.System) -> dict[type, object]:
+    supported = (mm.Exchange, mm.UniaxialAnisotropy, mm.Demag)
+    result = {}
+    for term in system.energy:
+        if not isinstance(term, supported):
+            raise ValueError(f"Energy term {term!r} is not supported by TOMMOS.")
+        term_type = type(term)
+        if term_type in result:
+            raise ValueError(f"Only one {term_type.__name__} term is supported by TOMMOS.")
+        result[term_type] = term
+
+    if mm.Demag not in result:
+        raise ValueError("TOMMOS currently always computes demagnetisation; system.energy must contain Demag().")
+    return result
+
+
+def _scalar_values(value: object, mat_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
         keys = set(value)
-        missing = [] if "default" in value else sorted(set(region_names) - keys)
-        extra = sorted(keys - set(region_names) - {"default"})
+        missing = [] if "default" in value else sorted(set(mat_names) - keys)
+        extra = sorted(keys - set(mat_names) - {"default"})
         if missing or extra:
-            raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] if name in value else value["default"] for name in region_names]
+            raise ValueError(f"Parameter {parameter} has mismatching materials; missing={missing}, extra={extra}.")
+        values = [value[name] if name in value else value["default"] for name in mat_names]
     else:
-        values = [value] * len(region_names)
+        values = [value] * len(mat_names)
 
     try:
         array = np.asarray(values, dtype=np.float64)
     except (TypeError, ValueError) as error:
         raise TypeError(f"Parameter {parameter} must contain numeric scalar values.") from error
-    if array.shape != (len(region_names),) or not np.all(np.isfinite(array)):
-        raise ValueError(f"Parameter {parameter} must contain one finite scalar per region.")
+    if array.shape != (len(mat_names),) or not np.all(np.isfinite(array)):
+        raise ValueError(f"Parameter {parameter} must contain one finite scalar per material.")
     return array
 
 
-def _vector_values(value: object, region_names: list[str], *, parameter: str) -> np.ndarray:
+def _vector_values(value: object, mat_names: list[str], *, parameter: str) -> np.ndarray:
     if isinstance(value, Mapping):
         keys = set(value)
-        missing = [] if "default" in value else sorted(set(region_names) - keys)
-        extra = sorted(keys - set(region_names) - {"default"})
+        missing = [] if "default" in value else sorted(set(mat_names) - keys)
+        extra = sorted(keys - set(mat_names) - {"default"})
         if missing or extra:
-            raise ValueError(f"Parameter {parameter} has mismatching regions; missing={missing}, extra={extra}.")
-        values = [value[name] if name in value else value["default"] for name in region_names]
+            raise ValueError(f"Parameter {parameter} has mismatching materials; missing={missing}, extra={extra}.")
+        values = [value[name] if name in value else value["default"] for name in mat_names]
     else:
-        values = [value] * len(region_names)
+        values = [value] * len(mat_names)
 
     try:
         array = np.asarray(values, dtype=np.float64)
     except (TypeError, ValueError) as error:
         raise TypeError(f"Parameter {parameter} must contain numeric vectors.") from error
-    expected_shape = (len(region_names), 3)
+    expected_shape = (len(mat_names), 3)
     if array.shape != expected_shape or not np.all(np.isfinite(array)):
         raise ValueError(f"Parameter {parameter} must have shape {expected_shape} and contain finite values.")
     norms = np.linalg.norm(array, axis=1)
@@ -468,26 +484,26 @@ def _vector_values(value: object, region_names: list[str], *, parameter: str) ->
     return array / norms[:, np.newaxis]
 
 
-def _anisotropy_values(term: mm.UniaxialAnisotropy, region_names: list[str]) -> tuple[np.ndarray, np.ndarray]:
+def _anisotropy_values(term: mm.UniaxialAnisotropy, mat_names: list[str]) -> tuple[np.ndarray, np.ndarray]:
     has_k = "K" in term.__dict__
     has_k1 = "K1" in term.__dict__
     if has_k and has_k1:
         raise ValueError("UniaxialAnisotropy must define either K or K1, not both.")
-    anisotropy = _scalar_values(term.__dict__.get("K", term.__dict__.get("K1", 0.0)), region_names, parameter="K1")
+    anisotropy = _scalar_values(term.__dict__.get("K", term.__dict__.get("K1", 0.0)), mat_names, parameter="K1")
 
     if "K2" in term.__dict__:
-        k2 = _scalar_values(term.__dict__["K2"], region_names, parameter="K2")
+        k2 = _scalar_values(term.__dict__["K2"], mat_names, parameter="K2")
         if np.any(k2 != 0):
             raise ValueError("Non-zero K2 is not supported because TOMMOS currently ignores the K2 material column.")
 
-    axes = _vector_values(term.__dict__.get("u", (0.0, 0.0, 1.0)), region_names, parameter="u")
+    axes = _vector_values(term.__dict__.get("u", (0.0, 0.0, 1.0)), mat_names, parameter="u")
     return anisotropy, axes
 
 
 def _saturation_values(
     grid: pv.UnstructuredGrid,
     source_ids: np.ndarray,
-    regions: list[_Region],
+    materials: list[_Material],
     *,
     saturation_key: str,
 ) -> np.ndarray:
@@ -502,14 +518,14 @@ def _saturation_values(
         raise ValueError(f"cell_data[{saturation_key!r}] must contain non-negative finite values.")
 
     result = []
-    for region in regions:
-        region_values = saturation[source_ids == region.source_id]
-        if not np.allclose(region_values, region_values[0], rtol=1e-12, atol=0.0):
+    for material in materials:
+        material_values = saturation[source_ids == material.source_id]
+        if not np.allclose(material_values, material_values[0], rtol=1e-12, atol=0.0):
             raise ValueError(
-                f"TOMMOS requires a constant {saturation_key} per region; "
-                f"region {region.name!r} contains multiple values."
+                f"TOMMOS requires a constant {saturation_key} per material; "
+                f"material {material.name!r} contains multiple values."
             )
-        result.append(region_values[0])
+        result.append(material_values[0])
     return np.asarray(result)
 
 
