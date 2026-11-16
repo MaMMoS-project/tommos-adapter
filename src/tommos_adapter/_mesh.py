@@ -40,7 +40,7 @@ def create_mesh(
     - `mat_names` (field-wise): list of names of all material region.
 
     The mesh is created via the `tommos mesh` CLI tool. Argument `geom` is the type of geometry, `h` is the mesh size,
-    `out_name` is the name or path where the mesh file will be saved. The argument `extent` means different thing for
+    `out_name` is the name or path where the mesh file will be saved. The argument `extent` means different things for
     each geometry shape:
 
     - if `geom="box"`, the geometry is a parallelepiped where the three real numbers `extent=(Lx, Ly, Lz)` define the
@@ -68,13 +68,13 @@ def create_mesh(
 
     - if `geom="eye"`, the projection in the xy-plane is an "eye" shape formed by two symmetric Bézier curves, extruded
       in the z dimension. The three real numbers `extent=(l, h, Lz)` are the full eye length, the eye half-height, and
-      the width in the z dimension, respectively, and the geometry points :math:`(x, y, z)` satisfy:
+      the thickness in the z dimension, respectively, and the geometry points :math:`(x, y, z)` satisfy:
 
       .. math:
         y \le -2 \frac{h}{l^2} x + \frac{h}{2}, \\
         |z| \le L_\mathsf{z}.
 
-    - of `geom="elliptic_cylinder"`, the geometry is a cylinder whose faces in the xy-planes are ellipses, centred in
+    - if `geom="elliptic_cylinder"`, the geometry is a cylinder whose faces in the xy-planes are ellipses, centred in
       the origin. The three real numbers `extent=(A, B, Lz)` are the major axes of the ellipse in the xy-plane and the
       width in the z dimension, and the geometry points :math:`(x, y, z)` satisfy:
 
@@ -93,7 +93,7 @@ def create_mesh(
             will be read using Pyvista.
         additional_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...` command.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
-            we assume nanometer scale unless specified otherwise.
+            nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
             set as `grain_1`, `grain_2`, etc.
 
@@ -170,7 +170,7 @@ def read_mesh(
             The mesh should contain a `cell_data` `'mat_id'` containing an integer id for each cell, intended as
             a grain index. If not given, the material is assumed to be uniform single grain and the value is set to 1.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
-            we assume nanometer scale unless specified otherwise.
+            nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
             set as `grain_1`, `grain_2`, etc.
 
@@ -193,14 +193,11 @@ def read_mesh(
         mesh.cell_data["mat_id"] = np.ones(mesh.n_cells, dtype=np.int32)
         warnings.warn(
             "Given mesh does not have a 'mat_id' field data. Defaulting to a singlegrain with 'mat_id'=1.",
-            stacklevel=1,
+            stacklevel=2,
         )
 
     mesh.field_data["mat_ids"] = np.unique(mesh.cell_data["mat_id"])
 
-    if len(mesh.field_data["mat_ids"]) > 1:
-        # TEMP: only allow single grain
-        raise NotImplementedError("Function `read_mesh` does not support multigrain materials yet.")
 
     if not (isinstance(mesh_unit_length, numbers.Real) and mesh_unit_length > 0 and np.isfinite(mesh_unit_length)):
         raise ValueError(f"Argument `mesh_unit_length` must be a positive finite real number. Got {mesh_unit_length}.")
