@@ -215,7 +215,7 @@ def read_mesh(
     if mat_id_name_mapping is None:
         mesh.field_data["mat_names"] = [f"grain_{i}" for i in mesh.field_data["mat_ids"]]
     else:
-        if not set(mat_id_name_mapping.keys()).issubset(mesh.field_data["mat_ids"]):
+        if set(mat_id_name_mapping.keys()) != set(mesh.field_data["mat_ids"]):
             raise ValueError(
                 "Inconsistency between detected 'mat_ids' field data and given `mat_id_name_mapping` argument. "
                 f"Found 'mat_ids': {mesh.field_data['mat_ids']}. Given `mat_id_name_mapping`: {mat_id_name_mapping}."
