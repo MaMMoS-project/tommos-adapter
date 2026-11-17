@@ -1,10 +1,5 @@
 """Test convenience functions for creating and reading meshes."""
 
-import shlex
-import subprocess
-from pathlib import Path
-from unittest.mock import Mock
-
 import numpy as np
 import pytest
 import pyvista as pv
@@ -16,25 +11,11 @@ import tommos_adapter as ta
     "geom, extent, h, out_name, additional_arguments",
     [("box", [1, 2, 3], 1, "box.vtu", "--backend grid"), ("ellipsoid", [4, 5, 6], 2, "ellip", "--n 3")],
 )
-def test_create_mesh_call_tommos(monkeypatch, geom, extent, h, out_name, additional_arguments):
+def test_create_mesh_call_tommos(tmp_path, geom, extent, h, out_name, additional_arguments):
     """Test call to tommos via `create_mesh` with possible different arguments."""
-    run = Mock(return_value=subprocess.CompletedProcess([], 0))
-    monkeypatch.setattr("tommos_adapter._mesh.subprocess.run", run)
-    monkeypatch.setattr("tommos_adapter._mesh.pv.read", lambda x: None)
-    read_mesh = Mock(return_value=pv.UnstructuredGrid())
-    monkeypatch.setattr("tommos_adapter._mesh.read_mesh", read_mesh)
-    extent_string = f"{extent[0]},{extent[1]},{extent[2]}"
-    expected_cmd = shlex.split(
-        f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name} {additional_arguments}"
-    )
-
-    ta.create_mesh(geom, extent, h=h, out_name=out_name, additional_arguments=additional_arguments)
-    run.assert_called_once_with(
-        expected_cmd,
-        cwd=Path("."),
-        capture_output=True,
-    )
-    read_mesh.assert_called_once_with(None, mesh_unit_length=1e-9, mat_id_name_mapping=None)
+    ta.create_mesh(geom, extent, h=h, out_name=tmp_path / out_name, additional_arguments=additional_arguments)
+    mesh_path = (tmp_path / out_name).with_suffix(".vtu")
+    assert mesh_path.is_file()
 
 
 @pytest.mark.parametrize("geom", ["non_supported"])
