@@ -35,6 +35,13 @@ def test_create_mesh_wrong_h(h):
         ta.create_mesh(geom="box", extent=(20, 20, 20), h=h, out_name="test")
 
 
+@pytest.mark.parametrize("additional_arguments", ["--nonexistent-variable error", "--nonexistent-flag"])
+def test_create_mesh_wrong_additional_arguments(additional_arguments):
+    """Check that not recognized additional arguments for tommos mesh raise an error."""
+    with pytest.raises(RuntimeError, match=f"tommos mesh: error: unrecognized arguments: {additional_arguments}"):
+        ta.create_mesh(geom="box", extent=(20, 20, 20), h=1, out_name="test", additional_arguments=additional_arguments)
+
+
 def test_create_mesh_process_fails():
     """Check that stderr of failing process is printed."""
     with pytest.raises(RuntimeError, match=r"tommos mesh: error: argument --geom: invalid choice"):
