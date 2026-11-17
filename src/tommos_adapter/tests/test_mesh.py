@@ -18,10 +18,9 @@ def test_create_mesh_call_tommos(tmp_path, geom, extent, h, out_name, additional
     assert mesh_path.is_file()
 
 
-@pytest.mark.parametrize("geom", ["non_supported"])
-def test_create_mesh_wrong_geom(geom):
+def test_create_mesh_wrong_geom():
     with pytest.raises(ValueError, match="Argument `geom` must be one of"):
-        ta.create_mesh(geom=geom, extent=(1, 1, 1), h=1, out_name="test")
+        ta.create_mesh(geom="not_supported", extent=(1, 1, 1), h=1, out_name="test")
 
 
 @pytest.mark.parametrize("extent", ["string", (1, 2), (5, 4, 3 + 2j), (1, 4, -1), (10, np.nan, 3)])
