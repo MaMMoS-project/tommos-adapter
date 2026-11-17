@@ -36,7 +36,7 @@ def create_mesh(
     - `mat_id` (cell-wise): defines the material or region integer ID. Different IDs define separated regions rather
       than different materials, i.e. they can have the same magnetic properties.
     - `mesh_unit_length` (field-wise): mesh unit length.
-    - `mat_ids` (field-wise): list of all possible material IDs.
+    - `mat_ids` (field-wise): list of all unique material IDs.
     - `mat_names` (field-wise): list of names of all material region.
 
     The mesh is created via the `tommos mesh` CLI tool. Argument `geom` is the type of geometry, `h` is the mesh size,
@@ -75,8 +75,8 @@ def create_mesh(
         |z| \le L_\mathsf{z}.
 
     - if `geom="elliptic_cylinder"`, the geometry is a cylinder whose faces in the xy-planes are ellipses, centred in
-      the origin. The three real numbers `extent=(A, B, Lz)` are the major axes of the ellipse in the xy-plane and the
-      width in the z dimension, and the geometry points :math:`(x, y, z)` satisfy:
+      the origin. The three real numbers `extent=(A, B, Lz)` are the major and minor axes of the ellipse in the
+      xy-plane and the thickness in the z dimension, and the geometry points :math:`(x, y, z)` satisfy:
 
       .. math:
         \left(\frac{x}{A/2}\right)^2 + \right(\frac{y}{B/2}\right)^2 \le 1, \\
@@ -164,8 +164,8 @@ def read_mesh(
 
     This function modifies the given mesh to set the following `field_data` attributes:
 
-    - `mesh_unit_length`: mesh unit length or scaling factor in unit of meter.
-    - `mat_ids`: list of all possible material IDs.
+    - `mesh_unit_length`: mesh unit length.
+    - `mat_ids`: list of all unique material IDs.
     - `mat_names`: list of names of all material region.
 
     Args:
