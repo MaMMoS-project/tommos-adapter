@@ -8,12 +8,14 @@ import tommos_adapter as ta
 
 
 @pytest.mark.parametrize(
-    "geom, extent, h, out_name, additional_arguments",
+    "geom, extent, h, out_name, additional_mesher_arguments",
     [("box", [1, 2, 3], 1, "box.vtu", "--backend grid"), ("ellipsoid", [4, 5, 6], 2, "ellip", "--n 3")],
 )
-def test_create_mesh_call_tommos(tmp_path, geom, extent, h, out_name, additional_arguments):
+def test_create_mesh_call_tommos(tmp_path, geom, extent, h, out_name, additional_mesher_arguments):
     """Test call to tommos via `create_mesh` with possible different arguments."""
-    ta.create_mesh(geom, extent, h=h, out_name=tmp_path / out_name, additional_arguments=additional_arguments)
+    ta.create_mesh(
+        geom, extent, h=h, out_name=tmp_path / out_name, additional_mesher_arguments=additional_mesher_arguments
+    )
     mesh_path = (tmp_path / out_name).with_suffix(".vtu")
     assert mesh_path.is_file()
 
@@ -35,17 +37,25 @@ def test_create_mesh_wrong_h(h):
         ta.create_mesh(geom="box", extent=(20, 20, 20), h=h, out_name="test")
 
 
-@pytest.mark.parametrize("additional_arguments", ["--nonexistent-variable error", "--nonexistent-flag"])
-def test_create_mesh_wrong_additional_arguments(additional_arguments):
+@pytest.mark.parametrize("additional_mesher_arguments", ["--nonexistent-variable error", "--nonexistent-flag"])
+def test_create_mesh_wrong_additional_mesher_arguments(additional_mesher_arguments):
     """Check that not recognized additional arguments for tommos mesh raise an error."""
-    with pytest.raises(RuntimeError, match=f"tommos mesh: error: unrecognized arguments: {additional_arguments}"):
-        ta.create_mesh(geom="box", extent=(20, 20, 20), h=1, out_name="test", additional_arguments=additional_arguments)
+    with pytest.raises(
+        RuntimeError, match=f"tommos mesh: error: unrecognized arguments: {additional_mesher_arguments}"
+    ):
+        ta.create_mesh(
+            geom="box",
+            extent=(20, 20, 20),
+            h=1,
+            out_name="test",
+            additional_mesher_arguments=additional_mesher_arguments,
+        )
 
 
 def test_create_mesh_process_fails():
     """Check that stderr of failing process is printed."""
     with pytest.raises(RuntimeError, match=r"tommos mesh: error: argument --geom: invalid choice"):
-        ta.create_mesh(geom="box", extent=(1, 1, 1), h=1, out_name="test", additional_arguments="--geom error")
+        ta.create_mesh(geom="box", extent=(1, 1, 1), h=1, out_name="test", additional_mesher_arguments="--geom error")
 
 
 @pytest.mark.parametrize("mesh_unit_length, mat_id, mat_id_name_mapping", [(1e-6, 3, None), (1e-9, 1, {1: "region_1"})])
@@ -109,7 +119,7 @@ def test_create_mesh_multigrain(tmp_path, geom, n_grains):
     For "poly_gb" we expect a grain boundary to appear in the `mat_names` field data.
     """
     mesh = ta.create_mesh(
-        geom=geom, extent=[10, 10, 10], h=2, out_name=tmp_path / "cube", additional_arguments=f"--n {n_grains}"
+        geom=geom, extent=[10, 10, 10], h=2, out_name=tmp_path / "cube", additional_mesher_arguments=f"--n {n_grains}"
     )
     assert len(mesh.field_data["mat_ids"]) == n_grains + (geom == "poly_gb")
     expected_mat_names = [f"grain_{i}" for i in range(1, n_grains + 1)]
@@ -125,7 +135,7 @@ def test_create_mesh_multigrain_mat_id_name_mapping(tmp_path):
         extent=[10, 10, 10],
         h=2,
         out_name=tmp_path / "cube",
-        additional_arguments="--n 4",
+        additional_mesher_arguments="--n 4",
         mat_id_name_mapping=mapping,
     )
     assert all(mesh.field_data["mat_names"] == list(mapping.values()))

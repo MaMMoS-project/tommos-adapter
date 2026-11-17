@@ -259,7 +259,7 @@ def test_mesh_poly(tmp_path, Lx, Ly, Lz, wrapper):
     """
     out_name = tmp_path / "poly_box.vtu"
     mesh = ta.create_mesh(
-        geom="poly", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_arguments="--n 3"
+        geom="poly", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_mesher_arguments="--n 3"
     )
     _test_multigrain_data(mesh, "poly")
 
@@ -305,7 +305,7 @@ def test_mesh_poly_gb(tmp_path, Lx, Ly, Lz, wrapper):
     """
     out_name = tmp_path / "poly_gb_box.vtu"
     mesh = ta.create_mesh(
-        geom="poly_gb", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_arguments="--n 3"
+        geom="poly_gb", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_mesher_arguments="--n 3"
     )
     _test_multigrain_data(mesh, "poly_gb")
 

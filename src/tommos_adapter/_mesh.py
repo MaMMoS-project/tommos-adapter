@@ -26,7 +26,7 @@ def create_mesh(
     extent: collections.abc.Sequence[numbers.Real],
     h: numbers.Real,
     out_name: os.PathLike,
-    additional_arguments: str = "",
+    additional_mesher_arguments: str = "",
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
 ) -> pyvista.UnstructuredGrid:
@@ -103,7 +103,8 @@ def create_mesh(
         h: Mesh size.
         out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
             will be read using Pyvista.
-        additional_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...` command.
+        additional_mesher_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...`
+            command.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
             nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
@@ -135,16 +136,16 @@ def create_mesh(
         3. Create a sphere of radius 8 using a different `tommos mesh` backend.
         >>> import tommos_adapter as ta
         ...
-        >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_arguments="--backend grid")
+        >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_mesher_arguments="--backend grid")
         UnstructuredGrid...
 
         4. Create a polycrystalline cube of side length 20 with 6 grains and with grain boundary phase.
         >>> import tommos_adapter as ta
         ...
-        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", additional_arguments="--n 6")
+        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", additional_mesher_arguments="--n 6")
         UnstructuredGrid...
 
-    """
+    """  # noqa: E501
     if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly", "poly_gb"]:
         raise ValueError(
             "Argument `geom` must be one of 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', 'poly', or 'poly_gb'. "
@@ -172,7 +173,7 @@ def create_mesh(
     res = subprocess.run(
         shlex.split(
             f"tommos mesh --geom {geom} --extent {extent_string} --h {h}"
-            f" --out-name {out_name.name} {additional_arguments}"
+            f" --out-name {out_name.name} {additional_mesher_arguments}"
         ),
         cwd=out_name.parent,
         capture_output=True,
