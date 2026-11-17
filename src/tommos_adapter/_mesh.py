@@ -112,7 +112,13 @@ def create_mesh(
         >>> ta.create_mesh("box", extent=[20, 20, 20], h=2, out_name="cube")
         UnstructuredGrid...
 
-        2. Create a sphere of radius 8 using a different `tommos mesh` backend.
+        2. Create a mesh in a specific location.
+        >>> import tommos_adapter as ta
+        ...
+        >>> ta.create_mesh("elliptic_cylinder", extent=[8, 8, 8], h=2, out_name="meshes/cylinder")
+        UnstructuredGrid...
+
+        3. Create a sphere of radius 8 using a different `tommos mesh` backend.
         >>> import tommos_adapter as ta
         ...
         >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_arguments="--backend grid")
