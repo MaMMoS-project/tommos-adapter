@@ -146,7 +146,10 @@ def create_mesh(
         ),
         cwd=out_name.parent,
         capture_output=True,
+        text=True,
     )
+    if res.returncode:
+        raise RuntimeError(f"`tommos mesh` failed with the following stderr:\n{res.stderr}")
     res.check_returncode()
     mesh = pv.read(out_name.with_suffix(".vtu"))
     return read_mesh(mesh, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping)

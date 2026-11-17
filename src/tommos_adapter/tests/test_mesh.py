@@ -55,6 +55,12 @@ def test_create_mesh_wrong_h(h):
         ta.create_mesh(geom="box", extent=(20, 20, 20), h=h, out_name="test")
 
 
+def test_create_mesh_process_fails():
+    """Check that stderr of failing process is printed."""
+    with pytest.raises(RuntimeError, match=r"tommos mesh: error: argument --geom: invalid choice"):
+        ta.create_mesh(geom="box", extent=(1, 1, 1), h=1, out_name="test", additional_arguments="--geom error")
+
+
 @pytest.mark.parametrize("mesh_unit_length, mat_id, mat_id_name_mapping", [(1e-6, 3, None), (1e-9, 1, {1: "region_1"})])
 def test_read_mesh_possible_args(mesh_files, mesh_unit_length, mat_id, mat_id_name_mapping):
     """Test `read_mesh` with different possible arguments."""
