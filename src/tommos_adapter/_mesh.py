@@ -101,9 +101,11 @@ def create_mesh(
         Mesh read from the created `.vtu` file.
 
     Raises:
-        ValueError: argument `geom` was not recognized.
-        ValueError: argument `extent` has the wrong type, length, or content.
-        ValueError: argument `h` is not a positive finite real number.
+        ValueError: Argument `geom` was not recognized.
+        ValueError: Argument `extent` has the wrong type, length, or content.
+        ValueError: Argument `h` is not a positive finite real number.
+        RuntimeError: `neper` was not found.
+        RuntimeError: Meshing with `tommos mesh` failed.
 
     Examples:
         1. Create a 20x20x20 cube of mesh size 2 whose file is called `cube.vtu`.
@@ -206,7 +208,6 @@ def read_mesh(
         )
 
     mesh.field_data["mat_ids"] = np.unique(mesh.cell_data["mat_id"])
-
 
     if not (isinstance(mesh_unit_length, numbers.Real) and mesh_unit_length > 0 and np.isfinite(mesh_unit_length)):
         raise ValueError(f"Argument `mesh_unit_length` must be a positive finite real number. Got {mesh_unit_length}.")

@@ -87,7 +87,7 @@ def test_read_mesh_wrong_mesh_unit_length(mesh_files, mesh_unit_length):
 
 @pytest.mark.parametrize("mat_id_name_mapping", [{2: "grain_2"}, {"1": "grain_1"}, {1: "grain_1", 2: "grain_2"}])
 def test_read_mesh_wrong_mat_id_name_mapping(mesh_files, mat_id_name_mapping):
-    """Test failing values of `mesh_unit_length`."""
+    """Test failing values of `mat_id_name_mapping`."""
     mesh = pv.read(mesh_files["vtu"])
     with pytest.raises(
         ValueError, match="Inconsistency between detected 'mat_ids' field data and given `mat_id_name_mapping`"
