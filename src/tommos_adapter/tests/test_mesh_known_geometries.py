@@ -49,6 +49,16 @@ def _test_singlegrain_data(mesh):
     assert mesh.field_data["mat_names"] == ["grain_1"]
 
 
+def _test_multigrain_data(mesh, geom):
+    """Test multi grain field_data arguments."""
+    assert mesh.field_data["mesh_unit_length"] == 1e-9
+    assert all(mesh.field_data["mat_ids"] == np.unique(mesh.cell_data["mat_id"]))
+    expected_mat_names = [f"grain_{i}" for i in mesh.field_data["mat_ids"]]
+    if geom == "poly_gb":
+        expected_mat_names[-1] = "grain_boundary"
+    assert all(mesh.field_data["mat_names"] == expected_mat_names)
+
+
 @pytest.mark.parametrize(
     "Lx, Ly, Lz, wrapper",
     [
@@ -223,4 +233,96 @@ def test_mesh_elliptic_cylinder(tmp_path, Lx, Ly, Lz, wrapper):
     # evaluate volume
     volume_from_mesh = _eval_volume_mesh(mesh)
     expected_volume = Lx * Ly * Lz * np.pi / 4
+    assert np.isclose(volume_from_mesh, expected_volume, rtol=0.1)
+
+
+@pytest.mark.parametrize(
+    "Lx, Ly, Lz, wrapper",
+    [
+        (5, 5, 5, lambda x: list(x)),
+        (5.0, 5.0, 10.0, lambda x: tuple(x)),
+        (np.int32(5), np.int32(10), np.int32(10), lambda x: np.array(x)),
+        (np.float64(5), np.float64(10), np.float64(7), lambda x: array("f", x)),
+    ],
+)
+def test_mesh_poly(tmp_path, Lx, Ly, Lz, wrapper):
+    """Test volume of mesh 'poly'.
+
+    The geometry is the same of 'box'. Only mat IDs and names change.
+
+    Points (Px, Py, Pz) satisfy:
+    - `|Px| <= Lx/2`.
+    - `|Py| <= Ly/2`.
+    - `|Pz| <= Lz/2`.
+
+    Volume is `Lx * Ly * Lz`.
+    """
+    out_name = tmp_path / "poly_box.vtu"
+    mesh = ta.create_mesh(
+        geom="poly", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_arguments="--n 3"
+    )
+    _test_multigrain_data(mesh, "poly")
+
+    # all mesh points are inside the box
+    assert np.all(np.abs(mesh.points[:, 0]) <= Lx / 2)
+    assert np.all(np.abs(mesh.points[:, 1]) <= Ly / 2)
+    assert np.all(np.abs(mesh.points[:, 2]) <= Lz / 2)
+
+    # mesh extremes equate the box side lengths
+    assert np.isclose(mesh.points[:, 0].max(), Lx / 2)
+    assert np.isclose(mesh.points[:, 1].max(), Ly / 2)
+    assert np.isclose(mesh.points[:, 2].max(), Lz / 2)
+    assert np.isclose(mesh.points[:, 0].min(), -Lx / 2)
+    assert np.isclose(mesh.points[:, 1].min(), -Ly / 2)
+    assert np.isclose(mesh.points[:, 2].min(), -Lz / 2)
+
+    # evaluate volume
+    volume_from_mesh = _eval_volume_mesh(mesh)
+    expected_volume = Lx * Ly * Lz
+    assert np.isclose(volume_from_mesh, expected_volume, rtol=0.1)
+
+
+@pytest.mark.parametrize(
+    "Lx, Ly, Lz, wrapper",
+    [
+        (5, 5, 5, lambda x: list(x)),
+        (5.0, 5.0, 10.0, lambda x: tuple(x)),
+        (np.int32(5), np.int32(10), np.int32(10), lambda x: np.array(x)),
+        (np.float64(5), np.float64(10), np.float64(7), lambda x: array("f", x)),
+    ],
+)
+def test_mesh_poly_gb(tmp_path, Lx, Ly, Lz, wrapper):
+    """Test volume of mesh 'poly_gb'.
+
+    The geometry is the same of 'box'. Only mat IDs and names change.
+
+    Points (Px, Py, Pz) satisfy:
+    - `|Px| <= Lx/2`.
+    - `|Py| <= Ly/2`.
+    - `|Pz| <= Lz/2`.
+
+    Volume is `Lx * Ly * Lz`.
+    """
+    out_name = tmp_path / "poly_gb_box.vtu"
+    mesh = ta.create_mesh(
+        geom="poly_gb", extent=wrapper([Lx, Ly, Lz]), h=2, out_name=out_name, additional_arguments="--n 3"
+    )
+    _test_multigrain_data(mesh, "poly_gb")
+
+    # all mesh points are inside the box
+    assert np.all(np.abs(mesh.points[:, 0]) <= Lx / 2)
+    assert np.all(np.abs(mesh.points[:, 1]) <= Ly / 2)
+    assert np.all(np.abs(mesh.points[:, 2]) <= Lz / 2)
+
+    # mesh extremes equate the box side lengths
+    assert np.isclose(mesh.points[:, 0].max(), Lx / 2)
+    assert np.isclose(mesh.points[:, 1].max(), Ly / 2)
+    assert np.isclose(mesh.points[:, 2].max(), Lz / 2)
+    assert np.isclose(mesh.points[:, 0].min(), -Lx / 2)
+    assert np.isclose(mesh.points[:, 1].min(), -Ly / 2)
+    assert np.isclose(mesh.points[:, 2].min(), -Lz / 2)
+
+    # evaluate volume
+    volume_from_mesh = _eval_volume_mesh(mesh)
+    expected_volume = Lx * Ly * Lz
     assert np.isclose(volume_from_mesh, expected_volume, rtol=0.1)

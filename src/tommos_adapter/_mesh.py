@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numbers
 import shlex
+import shutil
 import subprocess
 import warnings
 from collections.abc import Sequence
@@ -82,6 +83,17 @@ def create_mesh(
         \left(\frac{x}{A/2}\right)^2 + \right(\frac{y}{B/2}\right)^2 \le 1, \\
         |z| \le L_\mathsf{z}.
 
+    - if `geom="poly"`, the geometry is a polycrystalline parallelepiped without grain boundary phase. The parameters
+      are the same of geometry `"box"`. By default, this creates a material with 10 different grains generated randomly
+      by Voronoi tessellation using the tessellation software Neper. To modify the number of grains, specify additional
+      argument `--n`. For this geometry, Neper has to be installed on the system and its location must be in PATH.
+
+    - if `geom="poly_gb"`, the geometry is a polycrystalline parallelepiped with grain boundary phase. The parameters
+      are the same of geometry `"box"` and `"poly"`. By default, the number of grains are 10 and the grain boundary
+      phase has thickness of 1 and element size of 1. To modify these variables, specify additional arguments
+      `--gb-thickness` and `--gb-h`. For this geometry, Neper has to be installed on the system and its location must
+      be in PATH. Observe that the total number of different IDs in the material will be the number of grains plus one.
+
     For more information regarding `tommos mesh`, see https://github.com/MaMMoS-project/tommos#tommos-mesh-meshing-tool.
     These equations specify geometries in `tommos` 0.1.0.
 
@@ -126,10 +138,17 @@ def create_mesh(
         >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_arguments="--backend grid")
         UnstructuredGrid...
 
+        4. Create a polycrystalline cube of side length 20 with 6 grains and with grain boundary phase.
+        >>> import tommos_adapter as ta
+        ...
+        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", additional_arguments="--n 6")
+        UnstructuredGrid...
+
     """
-    if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder"]:
+    if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly", "poly_gb"]:
         raise ValueError(
-            f"Argument `geom` must be one of 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'. Got {geom}."
+            "Argument `geom` must be one of 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', 'poly', or 'poly_gb'. "
+            f"Got {geom}."
         )
 
     if not (
@@ -143,6 +162,9 @@ def create_mesh(
 
     if not (isinstance(h, numbers.Real) and h > 0 and np.isfinite(h)):
         raise ValueError(f"Argument `h` must be a positive finite real number. Got {h}.")
+
+    if "geom" in ["poly", "poly_gb"] and shutil.which("neper") is None:
+        raise RuntimeError("Neper not found. For geometries 'poly' and 'poly_gb' the software Neper is necessary.")
 
     out_name = Path(out_name)
     out_name.parent.mkdir(parents=True, exist_ok=True)
@@ -160,6 +182,10 @@ def create_mesh(
         raise RuntimeError(f"`tommos mesh` failed with the following stderr:\n{res.stderr}")
     res.check_returncode()
     mesh = pv.read(out_name.with_suffix(".vtu"))
+    if mat_id_name_mapping is None and geom == "poly_gb":
+        mat_ids = np.unique(mesh.cell_data["mat_id"])
+        mat_id_name_mapping = {i: f"grain_{i}" for i in mat_ids}
+        mat_id_name_mapping[mat_ids[-1]] = "grain_boundary"
     return read_mesh(mesh, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping)
 
 
@@ -190,7 +216,6 @@ def read_mesh(
 
     Raises:
         ValueError: Cell data attribute `mat_id` contains values different than :py:class:`numpy.int32`.
-        NotImplementedError: Multigrain meshes are not yet supported.
         ValueError: Given argument `mesh_unit_length` is of the wrong type or value.
         ValueError: Keys of `mat_id_name_mapping` and detected mesh `mat_ids` do not match.
 

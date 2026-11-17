@@ -80,8 +80,8 @@ def test_read_mesh_multigrain(mesh_files):
     """We simulate a multigrain material by modifying a cell to have a different `mat_id`."""
     mesh = pv.read(mesh_files["vtu"])
     mesh.cell_data["mat_id"][0] = mesh.cell_data["mat_id"][0] + 1
-    with pytest.raises(NotImplementedError, match="does not support multigrain materials"):
-        ta.read_mesh(mesh)
+    mesh = ta.read_mesh(mesh)
+    assert all(mesh.field_data["mat_names"] == ["grain_1", "grain_2"])
 
 
 @pytest.mark.parametrize("mesh_unit_length", ["string", np.array(1e-9), -1, 0, np.nan])
@@ -100,3 +100,32 @@ def test_read_mesh_wrong_mat_id_name_mapping(mesh_files, mat_id_name_mapping):
         ValueError, match="Inconsistency between detected 'mat_ids' field data and given `mat_id_name_mapping`"
     ):
         ta.read_mesh(mesh, mat_id_name_mapping=mat_id_name_mapping)
+
+
+@pytest.mark.parametrize("geom, n_grains", [("poly", 7), ("poly_gb", 4)])
+def test_create_mesh_multigrain(tmp_path, geom, n_grains):
+    """Test multigrain geometries.
+
+    For "poly_gb" we expect a grain boundary to appear in the `mat_names` field data.
+    """
+    mesh = ta.create_mesh(
+        geom=geom, extent=[10, 10, 10], h=2, out_name=tmp_path / "cube", additional_arguments=f"--n {n_grains}"
+    )
+    assert len(mesh.field_data["mat_ids"]) == n_grains + (geom == "poly_gb")
+    expected_mat_names = [f"grain_{i}" for i in range(1, n_grains + 1)]
+    if geom == "poly_gb":
+        expected_mat_names.append("grain_boundary")
+    assert all(expected_mat_names == mesh.field_data["mat_names"])
+
+
+def test_create_mesh_multigrain_mat_id_name_mapping(tmp_path):
+    mapping = {1: "grain_1", 2: "material_2", 3: "3", 4: 4}
+    mesh = ta.create_mesh(
+        geom="poly",
+        extent=[10, 10, 10],
+        h=2,
+        out_name=tmp_path / "cube",
+        additional_arguments="--n 4",
+        mat_id_name_mapping=mapping,
+    )
+    assert all(mesh.field_data["mat_names"] == list(mapping.values()))
