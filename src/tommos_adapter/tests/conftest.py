@@ -22,7 +22,7 @@ def data_dir(tmp_path_factory):
 def cube_20_path(data_dir):
     """Define a cubic mesh of side length 20 and mesh size 2."""
     cmd = "tommos mesh --geom box --extent 20,20,20 --h 2 --out-name cube_20"
-    subprocess.run(shlex.split(cmd), cwd=data_dir)
+    subprocess.run(shlex.split(cmd), cwd=data_dir, check=True)
     return data_dir / "cube_20.vtu"
 
 
@@ -89,7 +89,7 @@ def cube_tiny_path(data_dir):
     This mesh can be used in tests with calls to drivers where the physical result is not important.
     """
     cmd = "tommos mesh --geom box --extent 2,2,2 --h 2 --out-name tiny"
-    subprocess.run(shlex.split(cmd), cwd=data_dir)
+    subprocess.run(shlex.split(cmd), cwd=data_dir, check=True)
     return data_dir / "tiny.vtu"
 
 
