@@ -15,31 +15,8 @@ class TommosDrive(mdata.Drive):
     """Provide access to tommos simulation results."""
 
     @property
-    def x(self) -> str:
-        """Independent table variable name."""
-        return self._x
-
-    @x.setter
-    def x(self, value: str | None) -> None:
-        """Set the independent table variable.
-
-        Args:
-            value: Table column name. Defaults to ``B_hysteresis``.
-
-        Raises:
-            ValueError: If the requested column does not exist.
-        """
-        if value is None:
-            self._x = "B_hysteresis"
-        else:
-            old_value = getattr(self, "_x", None)
-            self._x = value
-            if value not in self.table.data.columns:
-                if old_value is None:
-                    del self._x
-                else:
-                    self._x = old_value
-                raise ValueError(f"Column value={value!r} does not exist in data.")
+    def _default_x(self):
+        return "B_hysteresis"
 
     @property
     def _table_path(self):
