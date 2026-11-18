@@ -202,7 +202,8 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "m0.vtu").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
-    assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
+    krn_text = (tmp_path / "test_write_input_files_after_checking.krn").read_text()
+    assert krn_text == "# theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)\n0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
     assert "size = 1e-09" in p2_text
     saved_initial = pv.read(tmp_path / "m0.vtu")
