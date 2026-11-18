@@ -484,6 +484,8 @@ def test_check_multigrain_field_data(m_cube_20_zero, field_data, error, error_me
     """Check field data consistency for multirgain materials."""
     system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=m_cube_20_zero)
     system.m.cell_data["mat_id"][-1] = 2
+    del system.m.field_data["mat_ids"]
+    del system.m.field_data["mat_names"]
     if field_data is not None:
         for key, value in field_data.items():
             system.m.field_data[key] = value

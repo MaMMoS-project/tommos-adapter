@@ -48,6 +48,8 @@ def m_cube_20_zero(mesh_cube_20):
     mesh_cube_20.point_data["m"] = np.zeros((mesh_cube_20.n_points, 3), dtype=np.float32)
     mesh_cube_20.cell_data["Ms"] = np.full(mesh_cube_20.n_cells, 1 / mm.consts.mu0)
     mesh_cube_20.field_data["mesh_unit_length"] = 1e-9
+    mesh_cube_20.field_data["mat_ids"] = [1]
+    mesh_cube_20.field_data["mat_names"] = ["grain_1"]
     return mesh_cube_20
 
 
@@ -64,6 +66,8 @@ def tommos_simulation(tmp_path_factory):
     grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
     grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
     grid.field_data["mesh_unit_length"] = 1e-9
+    grid.field_data["mat_ids"] = [1]
+    grid.field_data["mat_names"] = ["grain_1"]
 
     system = mm.System(name="table_output", m=grid)
     system.energy = mm.Exchange(A=1e-12) + mm.UniaxialAnisotropy(K=4e5, u=(1, 0, 0)) + mm.Demag()
