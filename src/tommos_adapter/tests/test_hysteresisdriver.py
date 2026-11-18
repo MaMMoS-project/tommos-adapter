@@ -1,6 +1,7 @@
 """Test hysteresis driver."""
 
 import sys
+import textwrap
 from unittest.mock import Mock
 
 import discretisedfield as df
@@ -194,7 +195,7 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     system.m = state
     system.energy = mm.Demag()
     hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
-    kwargs = {"h_direction": (1, 0, 0), "h_start": 1 / mm.consts.mu0, "h_final": -2 / mm.consts.mu0, "n": 11}
+    kwargs = {"h_direction": (1, 0, 0), "h_start": 3 / mm.consts.mu0, "h_final": -2 / mm.consts.mu0, "n": 6}
     monkeypatch.chdir(tmp_path)
     hd._checkargs(kwargs)
     hd._write_input_files(system, **kwargs)
@@ -203,23 +204,36 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "test_write_input_files_after_checking.krn").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
-    p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
-    assert "size = 1e-09" in p2_text
     saved_initial = pv.read(tmp_path / "m0.vtu")
     np.testing.assert_array_equal(saved_initial.points, input_points)
     np.testing.assert_array_equal(system.m.points, input_points)
-    assert "mx = 0" in p2_text
-    assert "my = 0" in p2_text
-    assert "mz = 1" in p2_text
-    assert "hx = 1" in p2_text
-    assert "hstart = 1" in p2_text
-    assert "hfinal = -2" in p2_text
-    assert "hstep = -0.29999999999999999" in p2_text
-    assert "mstep = 1" in p2_text
-    assert "method = tr" in p2_text
-    assert "max_iter = 1000" in p2_text
-    assert "tol_fun = 1e-08" in p2_text
-    assert "eps_a = auto" in p2_text
+    p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
+    assert p2_text == textwrap.dedent(
+        """\
+        [mesh]
+        size = 1e-09
+
+        [initial state]
+        mx = 0
+        my = 0
+        mz = 1
+
+        [field]
+        hstart = 3
+        hfinal = -2
+        hstep = -1
+        hx = 1
+        hy = 0
+        hz = 0
+        mstep = 1
+
+        [minimizer]
+        method = tr
+        max_iter = 1000
+        tol_fun = 1e-08
+        eps_a = auto
+        """
+    )
 
 
 def test_schedule_command():
