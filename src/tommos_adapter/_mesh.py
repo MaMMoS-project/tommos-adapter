@@ -25,7 +25,6 @@ def create_mesh(
     geom: str,
     extent: collections.abc.Sequence[numbers.Real],
     h: numbers.Real,
-    out_name: os.PathLike,
     additional_mesher_arguments: str = "",
     n: numbers.Integral | None = None,
     id: numbers.Integral | None = None,
@@ -33,6 +32,7 @@ def create_mesh(
     gb_h: numbers.Real | None = None,
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
+    out_name: os.PathLike | None = None,
 ) -> pyvista.UnstructuredGrid:
     r"""Create and read mesh using `tommos mesh`.
 
@@ -104,8 +104,6 @@ def create_mesh(
         geom: String specifying the geometry. Possible choices are 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'.
         extent: Sequence of three real numbers specifying the three parameters defining the geometry.
         h: Mesh size.
-        out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
-            will be read using Pyvista.
         additional_mesher_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...`
             command.
         n: Number of grains. For geometries `box`, `ellipsoid`, `eye`, and `elliptic_cylinder`, 1 is the only valid
@@ -121,6 +119,8 @@ def create_mesh(
             nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
             set as `grain_1`, `grain_2`, etc.
+        out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
+            will be read using Pyvista. The default name is the same string as the geometry.
 
     Returns:
         Mesh read from the created `.vtu` file.
@@ -156,16 +156,16 @@ def create_mesh(
         3. Create a sphere of radius 8 using a different `tommos mesh` backend.
         >>> import tommos_adapter as ta
         ...
-        >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_mesher_arguments="--backend grid")
+        >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, additional_mesher_arguments="--backend grid")
         UnstructuredGrid...
 
         4. Create a polycrystalline cube of side length 20 with 6 grains and with grain boundary phase of thickness 3.
         >>> import tommos_adapter as ta
         ...
-        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", n=6, gb_thickness=3)
+        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, n=6, gb_thickness=3)
         UnstructuredGrid...
 
-    """  # noqa: E501
+    """
     if geom not in ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly", "poly_gb"]:
         raise ValueError(
             "Argument `geom` must be one of 'box', 'ellipsoid', 'eye', 'elliptic_cylinder', 'poly', or 'poly_gb'. "
@@ -187,6 +187,8 @@ def create_mesh(
     if "geom" in ["poly", "poly_gb"] and shutil.which("neper") is None:
         raise RuntimeError("Neper not found. For geometries 'poly' and 'poly_gb' the software Neper is necessary.")
 
+    if out_name is None:
+        out_name = geom
     out_name = Path(out_name)
     out_name.parent.mkdir(parents=True, exist_ok=True)
     extent_string = ",".join(str(L) for L in extent)
