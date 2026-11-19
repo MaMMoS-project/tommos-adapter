@@ -222,6 +222,7 @@ def krn_script(
         output,
         krn_data(system, mat_key=mat_key, saturation_key=saturation_key),
         fmt="%.17g",
+        header="theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)",
     )
     return output.getvalue()
 
