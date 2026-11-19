@@ -27,6 +27,10 @@ def create_mesh(
     h: numbers.Real,
     out_name: os.PathLike,
     additional_mesher_arguments: str = "",
+    n: numbers.Integral | None = None,
+    id: numbers.Integral | None = None,
+    gb_thickness: numbers.Real | None = None,
+    gb_h: numbers.Real | None = None,
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
 ) -> pyvista.UnstructuredGrid:
@@ -85,14 +89,13 @@ def create_mesh(
 
     - if `geom="poly"`, the geometry is a polycrystalline parallelepiped without grain boundary phase. The parameters
       are the same of geometry `"box"`. By default, this creates a material with 10 different grains generated randomly
-      by Voronoi tessellation using the tessellation software Neper. To modify the number of grains, specify additional
-      argument `--n`. For this geometry, Neper has to be installed on the system and its location must be in PATH.
+      by Voronoi tessellation using the tessellation software Neper. For this geometry, Neper has to be installed on
+      the system and its location must be in PATH.
 
     - if `geom="poly_gb"`, the geometry is a polycrystalline parallelepiped with grain boundary phase. The parameters
       are the same of geometry `"box"` and `"poly"`. By default, the number of grains are 10 and the grain boundary
-      phase has thickness of 1 and element size of 1. To modify these variables, specify additional arguments
-      `--gb-thickness` and `--gb-h`. For this geometry, Neper has to be installed on the system and its location must
-      be in PATH. The total number of different IDs in the material will be the number of grains plus one.
+      phase has thickness of 1 and element size of 1. For this geometry, Neper has to be installed on the system and its
+      location must be in PATH. The total number of different IDs in the material will be the number of grains plus one.
 
     For more information regarding `tommos mesh`, see https://github.com/MaMMoS-project/tommos#tommos-mesh-meshing-tool.
     These equations specify geometries in `tommos` 0.1.0.
@@ -105,6 +108,15 @@ def create_mesh(
             will be read using Pyvista.
         additional_mesher_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...`
             command.
+        n: Number of grains. For geometries `box`, `ellipsoid`, `eye`, and `elliptic_cylinder`, 1 is the only valid
+            value. for `poly` and `poly_gb` geometries, the number can be bigger than 1.
+        id: Random seed  for tessellation generation via Neper. Only relevant for multigrain geometries,
+            i.e. `poly` and `poly_gb`. The identifier is used as seed of the random number generator to compute
+            the (initial) seed positions. For a non-deterministic behavior, where the seed positions differ on
+            each run, use -1 (or any other strictly negative value).
+        gb_thickness: Thickness of the grain boundary phase. Only compatible with geometry `poly_gb`.
+        gb_h: Nominal grain boundary mesh element size in the grain boundary phase. Only compatible with geometry
+            `poly_gb`.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
             nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
@@ -118,6 +130,14 @@ def create_mesh(
         ValueError: Argument `extent` has the wrong type, length, or content.
         ValueError: Argument `h` is not a positive finite real number.
         RuntimeError: `neper` was not found.
+        ValueError: Argument `n` was defined different than one for a singlegrain geometry.
+        ValueError: Argument `n` is not a positive integer.
+        ValueError: Argument `id` was defined for a geometry different than `poly` and `poly_gb`.
+        ValueError: Argument `id` is not an integer bigger or equal than -1.
+        ValueError: Argument `gb_thickness` was defined for a geometry different than `poly_gb`.
+        ValueError: Argument `gb_thickness` is not a positive real number.
+        ValueError: Argument `gb_h` was defined for a geometry different than `poly_gb`.
+        ValueError: Argument `gb_h` is not a positive real number.
         RuntimeError: Meshing with `tommos mesh` failed.
 
     Examples:
@@ -139,10 +159,10 @@ def create_mesh(
         >>> ta.create_mesh("ellipsoid", extent=[8, 8, 8], h=2, out_name="sphere", additional_mesher_arguments="--backend grid")
         UnstructuredGrid...
 
-        4. Create a polycrystalline cube of side length 20 with 6 grains and with grain boundary phase.
+        4. Create a polycrystalline cube of side length 20 with 6 grains and with grain boundary phase of thickness 3.
         >>> import tommos_adapter as ta
         ...
-        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", additional_mesher_arguments="--n 6")
+        >>> ta.create_mesh("poly_gb", extent=[20, 20, 20], h=2, out_name="poly", n=6, gb_thickness=3)
         UnstructuredGrid...
 
     """  # noqa: E501
@@ -170,11 +190,47 @@ def create_mesh(
     out_name = Path(out_name)
     out_name.parent.mkdir(parents=True, exist_ok=True)
     extent_string = ",".join(str(L) for L in extent)
+    cmd = f"tommos mesh --geom {geom} --extent {extent_string} --h {h} --out-name {out_name.name}"
+
+    if n is not None:
+        if geom in ["box", "ellipsoid", "eye", "elliptic_cylinder"] and n != 1:
+            raise ValueError(
+                "Invalid value for argument `n`. Geometries 'box', 'ellipsoid', 'eye', 'elliptic_cylinder' only allow "
+                f"`n=1`. Got {geom=} and {n=}."
+            )
+        if not (isinstance(n, numbers.Integral) and n > 0 and np.isfinite(n)) or isinstance(n, bool):
+            raise ValueError(f"Argument `n` must be a positive integer, got {n}.")
+        cmd += f" --n {n}"
+
+    if id is not None:
+        if geom not in ["poly", "poly_gb"]:
+            raise ValueError(
+                "Assigned `id` for geometry that does not use Neper. This argument should only be defined for "
+                f"geometries 'poly' and 'poly_gb'. Got {geom=} and {id=}."
+            )
+        if not (isinstance(id, numbers.Integral) and id > -1 and np.isfinite(id)) or isinstance(id, bool):
+            raise ValueError(f"Argument `id` must be an integer bigger or equal than -1, got {id}.")
+        cmd += f" --id {id}"
+
+    if gb_thickness is not None:
+        if geom != "poly_gb":
+            raise ValueError(
+                f"Argument `gb_thickness` is only compatible with geometry `poly_gb`. Got {geom=} and {gb_thickness=}."
+            )
+        if not (isinstance(gb_thickness, numbers.Real) and gb_thickness > 0 and np.isfinite(gb_thickness)):
+            raise ValueError(f"Argument `gb_thickness` must be a positive real number, got {gb_thickness}.")
+        cmd += f" --gb-thickness {gb_thickness}"
+
+    if gb_h is not None:
+        if geom != "poly_gb":
+            raise ValueError(f"Argument `gb_h` is only compatible with geometry `poly_gb`. Got {geom=} and {gb_h=}.")
+        if not (isinstance(gb_h, numbers.Real) and gb_h > 0 and np.isfinite(gb_h)):
+            raise ValueError(f"Argument `gb_h` must be a positive real number, got {gb_h}.")
+        cmd += f" --gb-h {gb_h}"
+
+    cmd += " " + additional_mesher_arguments
     res = subprocess.run(
-        shlex.split(
-            f"tommos mesh --geom {geom} --extent {extent_string} --h {h}"
-            f" --out-name {out_name.name} {additional_mesher_arguments}"
-        ),
+        shlex.split(cmd),
         cwd=out_name.parent,
         capture_output=True,
         text=True,
