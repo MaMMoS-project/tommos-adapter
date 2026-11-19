@@ -1,5 +1,6 @@
 """Test TOMMOS table output and reusable Ubermag table behaviour."""
 
+import mammos_entity as me
 import numpy as np
 import pytest
 from ubermagtable.testing import table as table_testing
@@ -100,3 +101,25 @@ def test_table_from_file_without_renaming(synthetic_table_factory):
     assert table.x == "B_ext_T"
     assert "B_ext_T" in table.data
     assert "B_hysteresis" not in table.data
+
+
+def test_table_to_entity_collection(synthetic_table_factory):
+    """Test `table.to_entity_collection()` function."""
+    table = synthetic_table_factory(x="B_hysteresis")
+
+    collection = table.to_entity_collection()
+    assert [name for name, _entity in collection] == [
+        "config",
+        "B_hysteresis",
+        "J_par",
+        "E",
+        "gnorm",
+        "additional_column",
+    ]
+    assert collection.description == "Synthetic TOMMOS hysteresis output."
+    assert collection.config == me.Entity("Index", [0, 1, 2])
+    assert collection.B_hysteresis == me.Entity("MagneticFluxDensity", [-1, 0, 1], "T")
+    assert collection.J_par == me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T")
+    assert me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3") == collection.E
+    assert collection.gnorm == me.Entity("EnergyDensity", [400, 40, 4], "J / m3")
+    np.testing.assert_allclose(collection.additional_column, [7, 8, 9])
