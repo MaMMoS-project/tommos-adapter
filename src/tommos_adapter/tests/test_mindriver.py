@@ -95,11 +95,10 @@ def test_wrong_zeeman_discretisedfield():
         md._get_required_p2_arguments(system, {})
 
 
-def test_check_system_unsupported_energies(state_zero):
+def test_check_system_unsupported_energies(m_cube_20_001):
     """Test that `MinDriver` does not support RKKY energy terms."""
     system = mm.System(name="test_unsupported_energies")
-    state = state_zero.copy()
-    state.point_data["m"][:, 0] = 1
+    state = m_cube_20_001.copy()
     system.m = state
     system.energy = mm.Demag() + mm.RKKY()
     md = ta.MinDriver()
@@ -134,11 +133,10 @@ def test_wrong_args(kwargs):
         ta.MinDriver()._checkargs(kwargs)
 
 
-def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
+def test_write_input_files_after_checking(m_cube_20_001, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
     system = mm.System(name="test_write_input_files_after_checking")
-    state = state_zero.copy()
-    state.point_data["m"][:, 2] = 1
+    state = m_cube_20_001.copy()
     system.m = state
     system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 2e6))
     md = ta.MinDriver(max_iter=1000, tol_fun=1e-8, eps_a="auto")
