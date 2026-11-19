@@ -95,6 +95,7 @@ twine = "*"
 
 [tool.pixi.pypi-dependencies]
 tommos-adapter = { path = ".", editable = true }
+tetgen = ">=0.8.4,<0.9"
 
 [tool.pixi.tasks]
 build-dists = {cmd="rm -rf dist && hatch build -t sdist -t wheel && twine check dist/*", description="Build and check sdist and wheel."}
