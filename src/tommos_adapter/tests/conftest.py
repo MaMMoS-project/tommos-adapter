@@ -38,14 +38,12 @@ def mesh_cube_20(cube_20_path):
 
 
 @pytest.fixture(scope="function")
-def m_cube_20_zero(mesh_cube_20):
-    """Initialize zero magnetization on cube of side length 20.
+def m_cube_20_001(mesh_cube_20):
+    """Initialize uniform (0, 0, 1) magnetization on cube of side length 20.
 
-    The default magnetization is zero everywhere and the user needs to specify a physical
-    magnetization in the tests. The saturation magnetization corresponds to
-    a spontaneous polarization of 1 T everywhere.
+    The saturation magnetization corresponds to a spontaneous polarization of 1 T everywhere.
     """
-    mesh_cube_20.point_data["m"] = np.zeros((mesh_cube_20.n_points, 3), dtype=np.float32)
+    mesh_cube_20.point_data["m"] = np.tile((0.0, 0.0, 1.0), (mesh_cube_20.n_points, 1))
     mesh_cube_20.cell_data["Ms"] = np.full(mesh_cube_20.n_cells, 1 / mm.consts.mu0)
     mesh_cube_20.field_data["mesh_unit_length"] = 1e-9
     mesh_cube_20.field_data["mat_ids"] = [1]

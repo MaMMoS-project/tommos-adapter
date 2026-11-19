@@ -173,11 +173,10 @@ def test_number_field_steps_raises(n):
         ta.tommos_driver._check_number_field_steps(n)
 
 
-def test_invalid_temperature(m_cube_20_zero):
+def test_invalid_temperature(m_cube_20_001):
     """Raise error on temperature different than zero."""
     system = mm.System(name="wrong_temperature")
-    system.m = m_cube_20_zero
-    system.m.point_data["m"][:, 2] = 1
+    system.m = m_cube_20_001
     system.energy = mm.Demag()
     system.T = 300.0
     hd = ta.HysteresisDriver()
@@ -185,11 +184,10 @@ def test_invalid_temperature(m_cube_20_zero):
         hd._check_system(system)
 
 
-def test_write_input_files_after_checking(m_cube_20_zero, tmp_path, monkeypatch):
+def test_write_input_files_after_checking(m_cube_20_001, tmp_path, monkeypatch):
     """Check inputs after processing the field arguments."""
-    system = mm.System(name="test_write_input_files_after_checking", m=m_cube_20_zero)
+    system = mm.System(name="test_write_input_files_after_checking", m=m_cube_20_001)
     input_points = system.m.points.copy()
-    system.m.point_data["m"][:, 2] = 1
     system.energy = mm.Demag()
     hd = ta.HysteresisDriver(mstep=1, method="tr", max_iter=1000, tol_fun=1e-8, eps_a="auto")
     kwargs = {"h_direction": (1, 0, 0), "h_start": 3 / mm.consts.mu0, "h_final": -2 / mm.consts.mu0, "n": 6}
@@ -275,10 +273,9 @@ def _write_tommos_output(state, output_file, magnetization):
     output_state.save(output_file)
 
 
-def test_read_data_updates_system(m_cube_20_zero, tmp_path, monkeypatch, write_mammos_table):
+def test_read_data_updates_system(m_cube_20_001, tmp_path, monkeypatch, write_mammos_table):
     """Read the last TOMMOS state and table while retaining grid metadata."""
-    system = mm.System(name="read_data", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 2] = 1
+    system = mm.System(name="read_data", m=m_cube_20_001)
     system.m.point_data["custom_point_data"] = np.arange(system.m.n_points)
     system.m.cell_data["region"] = np.arange(system.m.n_cells)
     original_state = system.m
@@ -306,10 +303,9 @@ def test_read_data_updates_system(m_cube_20_zero, tmp_path, monkeypatch, write_m
     np.testing.assert_allclose(system.table.data["B_hysteresis"], (-1, 0, 1))
 
 
-def test_read_data_requires_table(m_cube_20_zero, tmp_path, monkeypatch):
+def test_read_data_requires_table(m_cube_20_001, tmp_path, monkeypatch):
     """Missing tabular output does not partially update the system."""
-    system = mm.System(name="missing_table", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 2] = 1
+    system = mm.System(name="missing_table", m=m_cube_20_001)
     magnetization_before_read = system.m.point_data["m"].copy()
 
     output_directory = tmp_path / "hyst_missing_table"
@@ -323,10 +319,9 @@ def test_read_data_requires_table(m_cube_20_zero, tmp_path, monkeypatch):
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
-def test_read_data_drops_airbox(m_cube_20_zero, tmp_path, monkeypatch, write_mammos_table):
+def test_read_data_drops_airbox(m_cube_20_001, tmp_path, monkeypatch, write_mammos_table):
     """Map magnetization back from output with airbox nodes and reordered points."""
-    system = mm.System(name="airbox", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 2] = 1
+    system = mm.System(name="airbox", m=m_cube_20_001)
     expected = np.random.default_rng(0).normal(size=(system.m.n_points, 3))
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
@@ -351,10 +346,9 @@ def test_read_data_drops_airbox(m_cube_20_zero, tmp_path, monkeypatch, write_mam
     np.testing.assert_allclose(system.m.point_data["m"], expected, atol=1e-7)
 
 
-def test_read_data_requires_output(m_cube_20_zero, tmp_path, monkeypatch):
+def test_read_data_requires_output(m_cube_20_001, tmp_path, monkeypatch):
     """Missing TOMMOS snapshots produce a helpful error without changing the system."""
-    system = mm.System(name="missing_output", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 2] = 1
+    system = mm.System(name="missing_output", m=m_cube_20_001)
     magnetization_before_read = system.m.point_data["m"].copy()
     monkeypatch.chdir(tmp_path)
 
@@ -365,10 +359,9 @@ def test_read_data_requires_output(m_cube_20_zero, tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
-def test_read_data_rejects_invalid_output(m_cube_20_zero, tmp_path, monkeypatch, invalid_output):
+def test_read_data_rejects_invalid_output(m_cube_20_001, tmp_path, monkeypatch, invalid_output):
     """Invalid TOMMOS snapshots do not partially update the system."""
-    system = mm.System(name="invalid_output", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 2] = 1
+    system = mm.System(name="invalid_output", m=m_cube_20_001)
     magnetization_before_read = system.m.point_data["m"].copy()
 
     output_state = system.m.copy()
@@ -393,29 +386,26 @@ def test_read_data_rejects_invalid_output(m_cube_20_zero, tmp_path, monkeypatch,
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_read)
 
 
-def test_check_system_missing_energies(m_cube_20_zero):
+def test_check_system_missing_energies(m_cube_20_001):
     """Test that the system is not well defined if energies are not defined."""
-    system = mm.System(name="test_missing_energies", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_missing_energies", m=m_cube_20_001)
     hd = ta.HysteresisDriver()
     with pytest.raises(RuntimeError, match="System's energy is not defined"):
         hd._check_system(system)
 
 
-def test_check_system_unsupported_energies(m_cube_20_zero):
+def test_check_system_unsupported_energies(m_cube_20_001):
     """Test that `HysteresisDriver` does not support Zeeman energy terms."""
-    system = mm.System(name="test_unsupported_energies", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_unsupported_energies", m=m_cube_20_001)
     system.energy = mm.Demag() + mm.Zeeman(H=(0, 0, 1 / mm.consts.mu0))
     hd = ta.HysteresisDriver()
     with pytest.raises(ValueError, match="Energy term Zeeman.* is not supported by this driver"):
         hd._check_system(system)
 
 
-def test_check_system_multiple_energies_of_same_type(m_cube_20_zero):
+def test_check_system_multiple_energies_of_same_type(m_cube_20_001):
     """Test that `HysteresisDriver` does not support multiple energy terms of the same type."""
-    system = mm.System(name="test_unsupported_energies", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_unsupported_energies", m=m_cube_20_001)
     system.energy = mm.Demag() + mm.Exchange(A=1e-12) + mm.Exchange(name="different_exchange", A=2e-12)
     hd = ta.HysteresisDriver()
     with pytest.raises(ValueError, match=f"Multiple energy terms of type {type(mm.Exchange())} are not supported"):
@@ -443,10 +433,9 @@ def test_check_system_requires_unstructured_grid():
         ta.HysteresisDriver()._check_system(system)
 
 
-def test_check_system_energies_unsupported_parameters(m_cube_20_zero):
+def test_check_system_energies_unsupported_parameters(m_cube_20_001):
     """Test that the system energies raise errors on unsupported parameters."""
-    system = mm.System(name="test_unsupported_parameters", m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_unsupported_parameters", m=m_cube_20_001)
     system.energy = mm.Demag(asymptotic_radius=3)
     hd = ta.HysteresisDriver()
     with pytest.raises(RuntimeError, match="Attribute `asymptotic_radius` is not supported."):
@@ -462,10 +451,9 @@ def test_check_system_energies_unsupported_parameters(m_cube_20_zero):
         ("field_data", "mesh_unit_length", "'mesh_unit_length' is missing"),
     ],
 )
-def test_check_system_requires_grid_data(m_cube_20_zero, association, name, error_message):
+def test_check_system_requires_grid_data(m_cube_20_001, association, name, error_message):
     """All arrays needed to create TOMMOS inputs must be present."""
-    system = mm.System(name="test_missing_grid_data", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_missing_grid_data", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
     getattr(system.m, association).remove(name)
 
     with pytest.raises(RuntimeError, match=error_message):
@@ -480,9 +468,9 @@ def test_check_system_requires_grid_data(m_cube_20_zero, association, name, erro
         ({"mat_names": ["grain_1", "grain_2"]}, RuntimeError, "Field data 'mat_ids' and 'mat_names' are necessary"),
     ],
 )
-def test_check_multigrain_field_data(m_cube_20_zero, field_data, error, error_message):
+def test_check_multigrain_field_data(m_cube_20_001, field_data, error, error_message):
     """Check field data consistency for multirgain materials."""
-    system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=m_cube_20_zero)
+    system = mm.System(name="test_check_multigrain_field_data", energy=mm.Demag(), m=m_cube_20_001)
     system.m.cell_data["mat_id"][-1] = 2
     del system.m.field_data["mat_ids"]
     del system.m.field_data["mat_names"]
@@ -493,19 +481,18 @@ def test_check_multigrain_field_data(m_cube_20_zero, field_data, error, error_me
         ta.HysteresisDriver()._check_system(system)
 
 
-def test_check_system_magnetization_shape(m_cube_20_zero):
+def test_check_system_magnetization_shape(m_cube_20_001):
     """Magnetization must contain one three-dimensional vector per point."""
-    system = mm.System(name="test_invalid_shape", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_zero)
+    system = mm.System(name="test_invalid_shape", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
     system.m.point_data["m"] = np.ones((system.m.n_points, 2))
 
     with pytest.raises(RuntimeError, match="must have shape"):
         ta.HysteresisDriver()._check_system(system)
 
 
-def test_check_system_finite_magnetization(m_cube_20_zero):
+def test_check_system_finite_magnetization(m_cube_20_001):
     """Magnetization values must be finite."""
-    system = mm.System(name="test_non_finite_m", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_non_finite_m", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
     system.m.point_data["m"][0, 0] = np.nan
 
     with pytest.raises(RuntimeError, match="must contain only finite values"):
@@ -513,10 +500,10 @@ def test_check_system_finite_magnetization(m_cube_20_zero):
 
 
 @pytest.mark.parametrize("value", [0, 2])
-def test_check_system_normalized_magnetization(m_cube_20_zero, value):
+def test_check_system_normalized_magnetization(m_cube_20_001, value):
     """Magnetization must be normalized and is not modified during validation."""
-    system = mm.System(name="test_non_normalized_m", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = value
+    system = mm.System(name="test_non_normalized_m", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
+    system.m.point_data["m"][:, 2] = value
     magnetization_before_check = system.m.point_data["m"].copy()
 
     with pytest.raises(RuntimeError, match="must contain unit vectors"):
@@ -524,10 +511,9 @@ def test_check_system_normalized_magnetization(m_cube_20_zero, value):
     np.testing.assert_array_equal(system.m.point_data["m"], magnetization_before_check)
 
 
-def test_check_system_does_not_modify_valid_system(m_cube_20_zero):
+def test_check_system_does_not_modify_valid_system(m_cube_20_001):
     """Validation accepts pointwise-normalized magnetization without changing it."""
-    system = mm.System(name="test_valid_system", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_zero)
-    system.m.point_data["m"][:, 0] = 1
+    system = mm.System(name="test_valid_system", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
     magnetization_before_check = system.m.point_data["m"].copy()
 
     ta.HysteresisDriver()._check_system(system)
