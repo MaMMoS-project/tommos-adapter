@@ -107,6 +107,12 @@ def test_read_mesh_wrong_mat_id_name_mapping(mesh_cube_20, mat_id_name_mapping):
         ta.read_mesh(mesh_cube_20, mat_id_name_mapping=mat_id_name_mapping)
 
 
+def test_read_mesh_default_mat_name(mesh_cube_20):
+    """Test failure if one material is given name 'default'."""
+    with pytest.raises(ValueError, match="material name 'default' is not allowed"):
+        ta.read_mesh(mesh_cube_20, mat_id_name_mapping={1: "default"})
+
+
 @pytest.mark.parametrize("geom, n_grains", [("poly", 7), ("poly_gb", 4)])
 def test_create_mesh_multigrain(tmp_path, geom, n_grains):
     """Test multigrain geometries.
@@ -156,5 +162,38 @@ def test_set_magnetization_wrong_m(mesh_cube_20, m):
 @pytest.mark.parametrize("Ms", ["non_supported", [1, 2], -2, np.nan])
 def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
     mesh = ta.read_mesh(mesh_cube_20)
-    with pytest.raises(ValueError, match="`Ms` must be a positive finite real number"):
+    with pytest.raises(ValueError, match="Invalid argument `Ms`"):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
+
+
+def test_set_magnetization_multigrain(mesh_cube_mg):
+    """Test assignment of Ms in multigrain mesh as a dictionary.
+
+    We test both assignment via direct `mat_names` and using the 'default' key.
+    """
+    mesh = ta.set_magnetization(
+        mesh_cube_mg, m=(0, 0, 1), Ms={"grain_1": 1e6, "grain_2": 2e6, "grain_3": 1.5e6, "grain_boundary": 0.0}
+    )
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 1], 1e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 2], 2e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 3], 1.5e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 4], 0.0)
+
+    mesh = ta.set_magnetization(mesh, m=(0, 0, 1), Ms={"default": 1e6, "grain_boundary": 0.0})
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 1], 1e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 2], 1e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 3], 1e6)
+    np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 4], 0)
+
+
+@pytest.mark.parametrize(
+    "Ms, error_string",
+    [
+        ({"grain_1": 1e6, "grain_99": 2e6}, "Invalid material name"),
+        ({"grain_1": 1e6, "grain_2": 0.0}, "`Ms` does not contain information for all materials"),
+    ],
+)
+def test_set_magnetization_multigrain_failures(mesh_cube_mg, Ms, error_string):
+    """Failures of `set_magnetzation` with wrong `Ms`."""
+    with pytest.raises(ValueError, match=error_string):
+        ta.set_magnetization(mesh_cube_mg, m=(0, 0, 1), Ms=Ms)

@@ -7,7 +7,7 @@ import shlex
 import shutil
 import subprocess
 import warnings
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -203,6 +203,8 @@ def read_mesh(
     - `mat_ids`: list of all unique material IDs.
     - `mat_names`: list of names of all material region.
 
+    The name `default` as a material name (`mat_name`) is not allowed and it will raise an error.
+
     Args:
         mesh: User-defined mesh or generated from `tommos mesh` as a :py:class:`pyvista.UnstructuredGrid`.
             The mesh should contain a `cell_data` `'mat_id'` containing an integer id for each cell, intended as
@@ -219,6 +221,7 @@ def read_mesh(
         ValueError: Cell data attribute `mat_id` contains values different than :py:class:`numpy.int32`.
         ValueError: Given argument `mesh_unit_length` is of the wrong type or value.
         ValueError: Keys of `mat_id_name_mapping` and detected mesh `mat_ids` do not match.
+        ValueError: The material name 'default' in `mat_id_name_mapping` is not allowed.
 
     Warns:
         UserWarning: Given mesh does not a 'mat_id' `cell_data` attribute.
@@ -247,6 +250,8 @@ def read_mesh(
                 "Inconsistency between detected 'mat_ids' field data and given `mat_id_name_mapping` argument. "
                 f"Found 'mat_ids': {mesh.field_data['mat_ids']}. Given `mat_id_name_mapping`: {mat_id_name_mapping}."
             )
+        if "default" in mat_id_name_mapping.values():
+            raise ValueError(f"The material name 'default' is not allowed. Got {mat_id_name_mapping=}.")
         else:
             mesh.field_data["mat_names"] = [mat_id_name_mapping[_id] for _id in mesh.field_data["mat_ids"]]
 
@@ -256,7 +261,7 @@ def read_mesh(
 def set_magnetization(
     mesh: pyvista.UnstructuredGrid,
     m: tuple,
-    Ms: numbers.Real,
+    Ms: numbers.Real | collections.abc.Mapping[str, numbers.Real],
 ) -> pyvista.UnstructuredGrid:
     """Set values to initial magnetization and spontaneous magnetization.
 
@@ -287,9 +292,35 @@ def set_magnetization(
         raise ValueError("Argument `m` cannot be the zero vector.")
     mesh.point_data["m"] = np.tile(m_array, (mesh.n_points, 1))
 
-    if not (isinstance(Ms, numbers.Real) and Ms > 0 and np.isfinite(Ms)):
-        raise ValueError(f"Argument `Ms` must be a positive finite real number. Got {Ms}.")
-    mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
+    if isinstance(Ms, numbers.Real) and Ms > 0 and np.isfinite(Ms):
+        mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
+    elif isinstance(Ms, Mapping):
+        Ms_keys = set(Ms.keys())
+        mesh_names = set(mesh.field_data["mat_names"])
+        assigned_Ms_keys = Ms_keys - {"default"}
+        mesh.cell_data["Ms"] = np.zeros(mesh.n_cells, dtype=np.float64)
+
+        # case 1: unrecognized key in `Ms`
+        if not assigned_Ms_keys.issubset(mesh_names):
+            raise ValueError(
+                f"Invalid material name in `Ms`: {assigned_Ms_keys - mesh_names}. Valid material names: {mesh_names}"
+            )
+        # case 2: Ms_keys does not have all necessary keys nor 'default'
+        if "default" not in Ms_keys and Ms_keys != mesh_names:
+            raise ValueError(
+                f"Argument `Ms` does not contain information for all materials. Given {Ms=}. "
+                f"Missing materials: {[str(k) for k in mesh_names - Ms_keys]}."
+            )
+        # case 3: Ms_keys contains all keys or some keys + 'default'
+        for i, mat_id in enumerate(mesh.field_data["mat_ids"]):
+            mat_name = mesh.field_data["mat_names"][i]
+            mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == mat_id] = Ms.get(mat_name, Ms.get("default"))
+
+    else:
+        raise ValueError(
+            "Invalid argument `Ms`. It must be either a positive finite real number or a dictionary assigning a value "
+            f"to each material name. Got {Ms}."
+        )
 
     return mesh
 
