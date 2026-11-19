@@ -1,6 +1,7 @@
 """Test min driver."""
 
 import sys
+import textwrap
 
 import discretisedfield as df
 import micromagneticmodel as mm
@@ -150,16 +151,31 @@ def test_write_input_files_after_checking(state_zero, tmp_path, monkeypatch):
     assert (tmp_path / "test_write_input_files_after_checking.p2").is_file()
     assert (tmp_path / "test_write_input_files_after_checking.krn").read_text() == "0 0 0 0 1 0\n"
     p2_text = (tmp_path / "test_write_input_files_after_checking.p2").read_text()
-    assert "size = 1e-09" in p2_text
-    assert "mx = 0" in p2_text
-    assert "my = 0" in p2_text
-    assert "mz = 1" in p2_text
-    assert "hz = 1" in p2_text
-    assert "hstart = 2" in p2_text
-    assert "hfinal = 2" in p2_text
-    assert "max_iter = 1000" in p2_text
-    assert "tol_fun = 1e-08" in p2_text
-    assert "eps_a = auto" in p2_text
+    h_val = 2e6 * mm.consts.mu0
+    assert p2_text == textwrap.dedent(
+        f"""\
+        [mesh]
+        size = 1e-09
+
+        [initial state]
+        mx = 0
+        my = 0
+        mz = 1
+
+        [field]
+        hstart = {h_val}
+        hfinal = {h_val}
+        hstep = 1
+        hx = 0
+        hy = 0
+        hz = 1
+
+        [minimizer]
+        max_iter = 1000
+        tol_fun = 1e-08
+        eps_a = auto
+        """
+    )
 
 
 def test_schedule_command():
