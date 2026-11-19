@@ -2,7 +2,6 @@
 
 import numpy as np
 import pytest
-import pyvista as pv
 
 import tommos_adapter as ta
 
@@ -59,57 +58,53 @@ def test_create_mesh_process_fails():
 
 
 @pytest.mark.parametrize("mesh_unit_length, mat_id, mat_id_name_mapping", [(1e-6, 3, None), (1e-9, 1, {1: "region_1"})])
-def test_read_mesh_possible_args(mesh_files, mesh_unit_length, mat_id, mat_id_name_mapping):
+def test_read_mesh_possible_args(mesh_cube_20, mesh_unit_length, mat_id, mat_id_name_mapping):
     """Test `read_mesh` with different possible arguments."""
-    mesh = pv.read(mesh_files["vtu"])
-    mesh.cell_data["mat_id"] = np.full(mesh.n_cells, mat_id, dtype=np.int32)
-    mesh = ta.read_mesh(mesh, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping)
-    assert mesh.field_data["mesh_unit_length"] == mesh_unit_length
-    np.testing.assert_equal(mesh.cell_data["mat_id"], mat_id)
-    np.testing.assert_equal(mesh.field_data["mat_ids"], [mat_id])
+    mesh_cube_20.cell_data["mat_id"] = np.full(mesh_cube_20.n_cells, mat_id, dtype=np.int32)
+    mesh_cube_20 = ta.read_mesh(
+        mesh_cube_20, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping
+    )
+    assert mesh_cube_20.field_data["mesh_unit_length"] == mesh_unit_length
+    np.testing.assert_equal(mesh_cube_20.cell_data["mat_id"], mat_id)
+    np.testing.assert_equal(mesh_cube_20.field_data["mat_ids"], [mat_id])
     expected_mat_names = [f"grain_{mat_id}"] if mat_id_name_mapping is None else list(mat_id_name_mapping.values())
-    assert all(mesh.field_data["mat_names"] == expected_mat_names)
+    assert all(mesh_cube_20.field_data["mat_names"] == expected_mat_names)
 
 
-def test_read_mesh_wrong_mat_id(mesh_files):
+def test_read_mesh_wrong_mat_id(mesh_cube_20):
     """We modify the cell data `mat_id` in the fixture mesh to check that different dtypes are not accepted."""
-    mesh = pv.read(mesh_files["vtu"])
-    mesh.cell_data["mat_id"] = np.ones(mesh.n_cells, np.float64)
+    mesh_cube_20.cell_data["mat_id"] = np.ones(mesh_cube_20.n_cells, np.float64)
     with pytest.raises(ValueError, match="Cell data 'mat_id' should be an array of integers"):
-        ta.read_mesh(mesh)
+        ta.read_mesh(mesh_cube_20)
 
 
-def test_no_mat_id_warning(mesh_files):
-    mesh = pv.read(mesh_files["vtu"])
-    del mesh.cell_data["mat_id"]
+def test_no_mat_id_warning(mesh_cube_20):
+    del mesh_cube_20.cell_data["mat_id"]
     with pytest.warns(UserWarning, match="Given mesh does not have a 'mat_id' field data"):
-        ta.read_mesh(mesh)
+        ta.read_mesh(mesh_cube_20)
 
 
-def test_read_mesh_multigrain(mesh_files):
+def test_read_mesh_multigrain(mesh_cube_20):
     """We simulate a multigrain material by modifying a cell to have a different `mat_id`."""
-    mesh = pv.read(mesh_files["vtu"])
-    mesh.cell_data["mat_id"][0] = mesh.cell_data["mat_id"][0] + 1
-    mesh = ta.read_mesh(mesh)
-    assert all(mesh.field_data["mat_names"] == ["grain_1", "grain_2"])
+    mesh_cube_20.cell_data["mat_id"][0] = mesh_cube_20.cell_data["mat_id"][0] + 1
+    mesh_cube_20 = ta.read_mesh(mesh_cube_20)
+    assert all(mesh_cube_20.field_data["mat_names"] == ["grain_1", "grain_2"])
 
 
 @pytest.mark.parametrize("mesh_unit_length", ["string", np.array(1e-9), -1, 0, np.nan])
-def test_read_mesh_wrong_mesh_unit_length(mesh_files, mesh_unit_length):
+def test_read_mesh_wrong_mesh_unit_length(mesh_cube_20, mesh_unit_length):
     """Test failing values of `mesh_unit_length`."""
-    mesh = pv.read(mesh_files["vtu"])
     with pytest.raises(ValueError, match="`mesh_unit_length` must be a positive finite real number"):
-        ta.read_mesh(mesh, mesh_unit_length=mesh_unit_length)
+        ta.read_mesh(mesh_cube_20, mesh_unit_length=mesh_unit_length)
 
 
 @pytest.mark.parametrize("mat_id_name_mapping", [{2: "grain_2"}, {"1": "grain_1"}, {1: "grain_1", 2: "grain_2"}])
-def test_read_mesh_wrong_mat_id_name_mapping(mesh_files, mat_id_name_mapping):
+def test_read_mesh_wrong_mat_id_name_mapping(mesh_cube_20, mat_id_name_mapping):
     """Test failing values of `mat_id_name_mapping`."""
-    mesh = pv.read(mesh_files["vtu"])
     with pytest.raises(
         ValueError, match="Inconsistency between detected 'mat_ids' field data and given `mat_id_name_mapping`"
     ):
-        ta.read_mesh(mesh, mat_id_name_mapping=mat_id_name_mapping)
+        ta.read_mesh(mesh_cube_20, mat_id_name_mapping=mat_id_name_mapping)
 
 
 @pytest.mark.parametrize("geom, n_grains", [("poly", 7), ("poly_gb", 4)])
