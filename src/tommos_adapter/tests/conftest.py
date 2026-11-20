@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 import pyvista as pv
 
+import tommos_adapter as ta
 from tommos_adapter import HysteresisDriver
 
 
@@ -49,6 +50,27 @@ def m_cube_20_001(mesh_cube_20):
     mesh_cube_20.field_data["mat_ids"] = [1]
     mesh_cube_20.field_data["mat_names"] = ["grain_1"]
     return mesh_cube_20
+
+
+@pytest.fixture(scope="session")
+def cube_20_multigrain_n3_gb_path(data_dir):
+    """Define a multigrain cubic mesh.
+
+    Side length 20, mesh size 2, 3 grains, and with grain boundary.
+    """
+    cmd = "tommos mesh --geom poly_gb --extent 20,20,20 --h 2 --n 3 --out-name poly_gb_20"
+    subprocess.run(shlex.split(cmd), cwd=data_dir, check=True)
+    return data_dir / "poly_gb_20.vtu"
+
+
+@pytest.fixture(scope="function")
+def mesh_cube_mg(cube_20_multigrain_n3_gb_path):
+    """Read multigrain mesh and set `mat_names`."""
+    mesh = ta.read_mesh(
+        pv.read(cube_20_multigrain_n3_gb_path),
+        mat_id_name_mapping={1: "grain_1", 2: "grain_2", 3: "grain_3", 4: "grain_boundary"},
+    )
+    return mesh
 
 
 @pytest.fixture(scope="session")
