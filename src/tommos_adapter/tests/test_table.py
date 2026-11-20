@@ -80,7 +80,17 @@ def test_table_from_file(synthetic_table_factory):
     table = synthetic_table_factory(x="B_hysteresis")
 
     assert table.x == "B_hysteresis"
-    assert list(table.data.columns) == ["config", "B_hysteresis", "J_par", "E", "gnorm", "additional_column"]
+    assert list(table.data.columns) == [
+        "config",
+        "B_hysteresis",
+        "J_par",
+        "E",
+        "gnorm",
+        "additional_column",
+        "mx",
+        "my",
+        "mz",
+    ]
     assert table.units == {
         "config": "",
         "B_hysteresis": "T",
@@ -88,6 +98,9 @@ def test_table_from_file(synthetic_table_factory):
         "E": "J / m3",
         "gnorm": "J / m3",
         "additional_column": "",
+        "mx": "",
+        "my": "",
+        "mz": "",
     }
     np.testing.assert_allclose(table.data["additional_column"], (7, 8, 9))
     assert table.attributes["mammos"]["metadata"]["config"]["ontology_label"] == "Index"
@@ -115,6 +128,9 @@ def test_table_to_entity_collection(synthetic_table_factory):
         "E",
         "gnorm",
         "additional_column",
+        "mx",
+        "my",
+        "mz",
     ]
     assert collection.description == "Synthetic TOMMOS hysteresis output."
     assert collection.config == me.Entity("Index", [0, 1, 2])
@@ -122,4 +138,7 @@ def test_table_to_entity_collection(synthetic_table_factory):
     assert collection.J_par == me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T")
     assert me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3") == collection.E
     assert collection.gnorm == me.Entity("EnergyDensity", [400, 40, 4], "J / m3")
+    np.testing.assert_allclose(collection.mx, [1, 0, 0])
+    np.testing.assert_allclose(collection.my, [0, 1, 0])
+    np.testing.assert_allclose(collection.mz, [0, 0, 1])
     np.testing.assert_allclose(collection.additional_column, [7, 8, 9])
