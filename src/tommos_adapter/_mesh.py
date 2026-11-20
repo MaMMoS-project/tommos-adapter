@@ -92,7 +92,7 @@ def create_mesh(
       are the same of geometry `"box"` and `"poly"`. By default, the number of grains are 10 and the grain boundary
       phase has thickness of 1 and element size of 1. To modify these variables, specify additional arguments
       `--gb-thickness` and `--gb-h`. For this geometry, Neper has to be installed on the system and its location must
-      be in PATH. Observe that the total number of different IDs in the material will be the number of grains plus one.
+      be in PATH. The total number of different IDs in the material will be the number of grains plus one.
 
     For more information regarding `tommos mesh`, see https://github.com/MaMMoS-project/tommos#tommos-mesh-meshing-tool.
     These equations specify geometries in `tommos` 0.1.0.
@@ -127,7 +127,7 @@ def create_mesh(
         >>> ta.create_mesh("box", extent=[20, 20, 20], h=2, out_name="cube")
         UnstructuredGrid...
 
-        2. Create a mesh in a specific location.
+        2. Create a mesh in a specific directory.
         >>> import tommos_adapter as ta
         ...
         >>> ta.create_mesh("elliptic_cylinder", extent=[8, 8, 8], h=2, out_name="meshes/cylinder")
