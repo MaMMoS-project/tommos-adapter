@@ -134,3 +134,27 @@ def test_create_mesh_multigrain_mat_id_name_mapping(tmp_path):
         mat_id_name_mapping=mapping,
     )
     assert all(mesh.field_data["mat_names"] == list(mapping.values()))
+
+
+@pytest.mark.parametrize("m, Ms", [((0, 0, 1), 1e6), ([1, 1, 1], 2e6), (np.array([1, 1, 0]), 1)])
+def test_set_magnetization_possible_args(mesh_cube_20, m, Ms):
+    """Test `set_magnetization` with different possible arguments."""
+    mesh = ta.read_mesh(mesh_cube_20)
+    mesh = ta.set_magnetization(mesh, m, Ms)
+    m_unit = np.array(m) / np.linalg.norm(m)
+    np.testing.assert_allclose(mesh.point_data["m"], np.tile(m_unit, (mesh.n_points, 1)))
+    np.testing.assert_allclose(mesh.cell_data["Ms"], np.full(mesh.n_cells, Ms))
+
+
+@pytest.mark.parametrize("m", ["non_supported", [1, 2], ["wrong", "value"], [np.inf, 0, 0]])
+def test_set_magnetization_wrong_m(mesh_cube_20, m):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="`m` must be an array-like of length 3 of finite numbers"):
+        ta.set_magnetization(mesh, m=m, Ms=1e6)
+
+
+@pytest.mark.parametrize("Ms", ["non_supported", [1, 2], -2, np.nan])
+def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="`Ms` must be a positive finite real number"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
