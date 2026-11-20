@@ -25,14 +25,14 @@ def create_mesh(
     geom: str,
     extent: collections.abc.Sequence[numbers.Real],
     h: numbers.Real,
-    additional_mesher_arguments: str = "",
+    out_name: os.PathLike | None = None,
     n: numbers.Integral | None = None,
     id: numbers.Integral | None = None,
     gb_thickness: numbers.Real | None = None,
     gb_h: numbers.Real | None = None,
+    additional_mesher_arguments: str = "",
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
-    out_name: os.PathLike | None = None,
 ) -> pyvista.UnstructuredGrid:
     r"""Create and read mesh using `tommos mesh`.
 
@@ -104,8 +104,8 @@ def create_mesh(
         geom: String specifying the geometry. Possible choices are 'box', 'ellipsoid', 'eye', or 'elliptic_cylinder'.
         extent: Sequence of three real numbers specifying the three parameters defining the geometry.
         h: Mesh size.
-        additional_mesher_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...`
-            command.
+        out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
+            will be read using Pyvista. The default name is the same string as the geometry.
         n: Number of grains. For geometries `box`, `ellipsoid`, `eye`, and `elliptic_cylinder`, 1 is the only valid
             value. for `poly` and `poly_gb` geometries, the number can be bigger than 1.
         id: Random seed  for tessellation generation via Neper. Only relevant for multigrain geometries,
@@ -115,12 +115,12 @@ def create_mesh(
         gb_thickness: Thickness of the grain boundary phase. Only compatible with geometry `poly_gb`.
         gb_h: Nominal grain boundary mesh element size in the grain boundary phase. Only compatible with geometry
             `poly_gb`.
+        additional_mesher_arguments: string containing optional arguments to pass at the end of the `tommos mesh ...`
+            command.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
             nanometer scale.
         mat_id_name_mapping: Mapping linking each `mat_id` to its grain name. If not specified, the `mat_names` are
             set as `grain_1`, `grain_2`, etc.
-        out_name: Name of the mesh file. Both a `.vtu` and a `.npz` file will be created, but only the former
-            will be read using Pyvista. The default name is the same string as the geometry.
 
     Returns:
         Mesh read from the created `.vtu` file.
