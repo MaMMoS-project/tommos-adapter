@@ -326,8 +326,8 @@ def test_read_data_drops_airbox(m_cube_20_001, tmp_path, monkeypatch, write_mamm
     expected /= np.linalg.norm(expected, axis=1, keepdims=True)
 
     airbox_points = np.array([[-50, -50, -50], [50, -50, -50], [-50, 50, -50], [-50, -50, 50]])
-    points = np.vstack([system.m.points, airbox_points]).astype(np.float32)
-    magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))]).astype(np.float32)
+    points = np.vstack([system.m.points, airbox_points])
+    magnetization = np.vstack([expected, np.zeros((len(airbox_points), 3))])
     connectivity = np.vstack([system.m.cell_connectivity.reshape(-1, 4), np.arange(4) + system.m.n_points])
     order = np.random.default_rng(1).permutation(len(points))
     new_index = np.argsort(order)
