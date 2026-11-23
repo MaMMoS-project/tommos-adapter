@@ -61,7 +61,7 @@ def tommos_simulation(tmp_path_factory):
         check=True,
     )
     grid = pv.read(output_directory / "table.vtu")
-    grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1)).astype(np.float32)
+    grid.point_data["m"] = np.tile((1, 0, 0), (grid.n_points, 1))
     grid.cell_data["Ms"] = np.full(grid.n_cells, 1 / mm.consts.mu0)
     grid.field_data["mesh_unit_length"] = 1e-9
     grid.field_data["mat_ids"] = [1]
@@ -103,7 +103,7 @@ def m_tiny(cube_tiny_path):
     corresponds to a spontaneous polarization of 1 T everywhere.
     """
     m = pv.read(cube_tiny_path)
-    m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (m.n_points, 1))
+    m.point_data["m"] = np.tile(np.array([0.0, 0.0, 1.0]), (m.n_points, 1))
     m.cell_data["Ms"] = np.full(m.n_cells, 1 / mm.consts.mu0)
     m.field_data["mesh_unit_length"] = 1e-9
     m.field_data["mat_ids"] = np.unique(m.cell_data["mat_id"])
