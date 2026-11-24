@@ -180,6 +180,10 @@ def krn_data(
     else:
         anisotropy_values, easy_axes = _anisotropy_values(anisotropy, mat_names)
 
+    demag = terms.get(mm.Demag)
+    if hasattr(demag, "asymptotic_radius"):
+        raise RuntimeError(f"Attribute `asymptotic_radius` is not supported. Given value: {demag.asymptotic_radius}.")
+
     theta = np.arccos(np.clip(easy_axes[:, 2], -1.0, 1.0))
     phi = np.arctan2(easy_axes[:, 1], easy_axes[:, 0])
     saturation = _saturation_values(

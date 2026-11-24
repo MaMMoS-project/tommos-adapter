@@ -36,6 +36,76 @@ def test_create_mesh_wrong_h(h):
         ta.create_mesh(geom="box", extent=(20, 20, 20), h=h, out_name="test")
 
 
+@pytest.mark.parametrize("geom", ["poly", "poly_gb"])
+@pytest.mark.parametrize("n", [2, 3])
+def test_create_mesh_possible_n(tmp_path, geom, n):
+    """Create meshes with different number of grains.
+
+    We expect that the number of grains in geometry `poly` is exactly `n`, while for `poly_gb` the number of
+    material ids will be `n` + 1, i.e. the grain boundary.
+    """
+    mesh = ta.create_mesh(geom=geom, extent=[5, 5, 5], h=2, n=n, out_name=tmp_path / geom)
+    assert len(mesh.field_data["mat_ids"]) == n + (geom == "poly_gb")
+
+
+@pytest.mark.parametrize("geom", ["box", "ellipsoid", "eye", "elliptic_cylinder"])
+def test_create_mesh_singlegrain_n(tmp_path, geom):
+    """Create singlegrain mesh with explicit one grain."""
+    mesh = ta.create_mesh(geom=geom, extent=(5, 5, 5), h=2, n=1, out_name=tmp_path / geom)
+    assert len(mesh.field_data["mat_ids"]) == 1
+    with pytest.raises(ValueError, match="Invalid value for argument `n`"):
+        ta.create_mesh(geom=geom, extent=(5, 5, 5), h=2, n=3, out_name=tmp_path / geom)
+
+
+@pytest.mark.parametrize("n", ["string", (1, 2), 3 + 2j, 0, np.nan])
+def test_create_mesh_wrong_n(n):
+    """Test impossible values for `n`."""
+    with pytest.raises(ValueError, match="Argument `n` must be a positive integer"):
+        ta.create_mesh(geom="poly", extent=(20, 20, 20), h=2, n=n)
+
+
+@pytest.mark.parametrize("geom", ["box", "ellipsoid", "eye", "elliptic_cylinder"])
+def test_create_mesh_wrong_id_geom(geom):
+    """Test incompatible `id` for singlegrain geometries."""
+    with pytest.raises(ValueError, match="Assigned `id` for geometry that does not use Neper"):
+        ta.create_mesh(geom=geom, extent=(20, 20, 20), h=2, id=7)
+
+
+@pytest.mark.parametrize("id", ["string", (1, 2), 3 + 2j, np.nan])
+def test_create_mesh_wrong_id_value(id):
+    """Test impossible values for `id`."""
+    with pytest.raises(ValueError, match="Argument `id` must be an integer"):
+        ta.create_mesh(geom="poly", extent=(20, 20, 20), h=2, id=id)
+
+
+@pytest.mark.parametrize("geom", ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly"])
+def test_create_mesh_wrong_gb_thickness_geom(geom):
+    """Test incompatible `gb_thickness` for geometries without grain boundary."""
+    with pytest.raises(ValueError, match="Argument `gb_thickness` is only compatible with geometry `poly_gb`"):
+        ta.create_mesh(geom=geom, extent=(20, 20, 20), h=2, gb_thickness=1)
+
+
+@pytest.mark.parametrize("gb_thickness", ["string", (1, 2), 3 + 2j, 0, np.nan])
+def test_create_mesh_wrong_gb_thickness_value(gb_thickness):
+    """Test impossible values for `gb_thickness`."""
+    with pytest.raises(ValueError, match="Argument `gb_thickness` must be a positive real number"):
+        ta.create_mesh(geom="poly_gb", extent=(20, 20, 20), h=2, gb_thickness=gb_thickness)
+
+
+@pytest.mark.parametrize("geom", ["box", "ellipsoid", "eye", "elliptic_cylinder", "poly"])
+def test_create_mesh_wrong_gb_h_geom(geom):
+    """Test incompatible `gb_h` for geometries without grain boundary."""
+    with pytest.raises(ValueError, match="Argument `gb_h` is only compatible with geometry `poly_gb`"):
+        ta.create_mesh(geom=geom, extent=(20, 20, 20), h=2, gb_h=1)
+
+
+@pytest.mark.parametrize("gb_h", ["string", (1, 2), 3 + 2j, 0, np.nan])
+def test_create_mesh_wrong_gb_h_value(gb_h):
+    """Test impossible values for `gb_h`."""
+    with pytest.raises(ValueError, match="Argument `gb_h` must be a positive real number"):
+        ta.create_mesh(geom="poly_gb", extent=(20, 20, 20), h=2, gb_h=gb_h)
+
+
 @pytest.mark.parametrize("additional_mesher_arguments", ["--nonexistent-variable error", "--nonexistent-flag"])
 def test_create_mesh_wrong_additional_mesher_arguments(additional_mesher_arguments):
     """Check that not recognized additional arguments for tommos mesh raise an error."""
@@ -134,3 +204,27 @@ def test_create_mesh_multigrain_mat_id_name_mapping(tmp_path):
         mat_id_name_mapping=mapping,
     )
     assert all(mesh.field_data["mat_names"] == list(mapping.values()))
+
+
+@pytest.mark.parametrize("m, Ms", [((0, 0, 1), 1e6), ([1, 1, 1], 2e6), (np.array([1, 1, 0]), 1)])
+def test_set_magnetization_possible_args(mesh_cube_20, m, Ms):
+    """Test `set_magnetization` with different possible arguments."""
+    mesh = ta.read_mesh(mesh_cube_20)
+    mesh = ta.set_magnetization(mesh, m, Ms)
+    m_unit = np.array(m) / np.linalg.norm(m)
+    np.testing.assert_allclose(mesh.point_data["m"], np.tile(m_unit, (mesh.n_points, 1)))
+    np.testing.assert_allclose(mesh.cell_data["Ms"], np.full(mesh.n_cells, Ms))
+
+
+@pytest.mark.parametrize("m", ["non_supported", [1, 2], ["wrong", "value"], [np.inf, 0, 0]])
+def test_set_magnetization_wrong_m(mesh_cube_20, m):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="`m` must be an array-like of length 3 of finite numbers"):
+        ta.set_magnetization(mesh, m=m, Ms=1e6)
+
+
+@pytest.mark.parametrize("Ms", ["non_supported", [1, 2], -2, np.nan])
+def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="`Ms` must be a positive finite real number"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
