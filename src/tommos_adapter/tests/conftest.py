@@ -2,6 +2,7 @@
 
 import shlex
 import subprocess
+from pathlib import Path
 
 import mammos_entity as me
 import micromagneticmodel as mm
@@ -53,7 +54,7 @@ def m_cube_20_001(mesh_cube_20):
 
 
 @pytest.fixture(scope="session")
-def cube_20_multigrain_n3_gb_path(data_dir):
+def cube_20_multigrain_n3_gb_path(data_dir: Path) -> Path:
     """Define a multigrain cubic mesh.
 
     Side length 20, mesh size 2, 3 grains, and with grain boundary.
@@ -64,7 +65,7 @@ def cube_20_multigrain_n3_gb_path(data_dir):
 
 
 @pytest.fixture(scope="function")
-def mesh_cube_mg(cube_20_multigrain_n3_gb_path):
+def mesh_cube_mg(cube_20_multigrain_n3_gb_path: Path) -> pv.UnstructuredGrid:
     """Read multigrain mesh and set `mat_names`."""
     mesh = ta.read_mesh(
         pv.read(cube_20_multigrain_n3_gb_path),

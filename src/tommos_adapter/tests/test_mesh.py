@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+import pyvista as pv
 
 import tommos_adapter as ta
 
@@ -107,7 +108,7 @@ def test_read_mesh_wrong_mat_id_name_mapping(mesh_cube_20, mat_id_name_mapping):
         ta.read_mesh(mesh_cube_20, mat_id_name_mapping=mat_id_name_mapping)
 
 
-def test_read_mesh_default_mat_name(mesh_cube_20):
+def test_read_mesh_default_mat_name(mesh_cube_20: pv.UnstructuredGrid):
     """Test failure if one material is given name 'default'."""
     with pytest.raises(ValueError, match="material name 'default' is not allowed"):
         ta.read_mesh(mesh_cube_20, mat_id_name_mapping={1: "default"})
@@ -166,7 +167,7 @@ def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
 
 
-def test_set_Ms_multigrain_explicitly(mesh_cube_mg):
+def test_set_Ms_multigrain_explicitly(mesh_cube_mg: pv.UnstructuredGrid):
     """Test assignment of Ms in multigrain mesh as a dictionary.
 
     We test explicit assignment via the `mat_name`.
@@ -180,7 +181,7 @@ def test_set_Ms_multigrain_explicitly(mesh_cube_mg):
     np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 4], 0.0)
 
 
-def test_set_Ms_multigrain_with_default(mesh_cube_mg):
+def test_set_Ms_multigrain_with_default(mesh_cube_mg: pv.UnstructuredGrid):
     """Test assignment of Ms in multigrain mesh as a dictionary.
 
     We test using the 'default' key.
@@ -199,7 +200,7 @@ def test_set_Ms_multigrain_with_default(mesh_cube_mg):
         ({"grain_1": 1e6, "grain_2": 0.0}, "`Ms` does not contain information for all materials"),
     ],
 )
-def test_set_Ms_multigrain_failures(mesh_cube_mg, Ms, error_string):
+def test_set_Ms_multigrain_failures(mesh_cube_mg: pv.UnstructuredGrid, Ms: dict[str, float], error_string: str):
     """Failures of `set_magnetzation` with wrong `Ms`."""
     with pytest.raises(ValueError, match=error_string):
         ta.set_magnetization(mesh_cube_mg, m=(0, 0, 1), Ms=Ms)
