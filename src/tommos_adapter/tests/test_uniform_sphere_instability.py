@@ -43,7 +43,7 @@ def test_uniform_sphere_instability_field(tmp_path, monkeypatch):
 
     result = ta.TommosRunner()._call(
         # For this 20 nm sphere and h=3 nm, TOMMOS's default KL=10 gives a 227.8 nm air box.
-        f"{name} --add-shell --hmax 20 --snapshot-every 0"
+        f"{name} --add-shell --hmax 20 --snapshot-every 0 --cpu-spmv-backend scipy --no-cpp-mkl"
     )
     assert result.returncode == 0, result.stdout.decode() + result.stderr.decode()
 
