@@ -1,10 +1,7 @@
 """Regression tests for the demagnetisation energy."""
 
-import subprocess
-
 import micromagneticmodel as mm
 import numpy as np
-import pyvista as pv
 
 import tommos_adapter as ta
 from tommos_adapter.plugins import table_from_file
@@ -13,34 +10,18 @@ from tommos_adapter.plugins import table_from_file
 def test_uniformly_magnetised_cube_energy(tmp_path, monkeypatch):
     """A uniformly magnetised cube has magnetometric factor one third."""
     name = "uniform_cube"
-    subprocess.run(
-        [
-            "tommos",
-            "mesh",
-            "--geom",
-            "box",
-            "--extent",
-            "20,20,20",
-            "--h",
-            "1",
-            "--out-name",
-            name,
-        ],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
+    state = ta.create_mesh(
+        geom="box",
+        extent=(20, 20, 20),
+        h=1,
+        out_name=tmp_path / name,
     )
 
-    state = pv.read(tmp_path / f"{name}.vtu")
-    state.points *= ta.scripts.DEFAULT_MESH_UNIT
-    state.cell_data["region_id"] = state.cell_data.pop("mat_id")
-    state.point_data["m"] = np.tile((0.0, 0.0, 1.0), (state.n_points, 1))
-
     spontaneous_polarisation = 1.0  # T
-    state.cell_data["Ms"] = np.full(
-        state.n_cells,
-        spontaneous_polarisation / mm.consts.mu0,
+    state = ta.set_magnetization(
+        state,
+        m=(0, 0, 1),
+        Ms=spontaneous_polarisation / mm.consts.mu0,
     )
 
     system = mm.System(name=name, energy=mm.Demag(), m=state)
