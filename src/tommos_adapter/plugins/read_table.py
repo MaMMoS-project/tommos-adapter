@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import types
 
 import mammos_entity as me
 import ubermagtable as ut
@@ -49,4 +50,17 @@ def table_from_file(
             "metadata": metadata,
         }
     }
-    return ut.Table(data=data, units=units, x=x, attributes=attributes)
+    table = ut.Table(data=data, units=units, x=x, attributes=attributes)
+    table.to_entity_collection = types.MethodType(to_entity_collection, table)
+    return table
+
+
+def to_entity_collection(self) -> me.EntityCollection:
+    """Table method to return an entity collection.
+
+    Returns:
+        Entity collection of all the relevant entities from the simulation output.
+    """
+    return me.EntityCollection.from_dataframe(
+        self.data, self.attributes["mammos"]["metadata"], description=self.attributes["mammos"]["description"]
+    )
