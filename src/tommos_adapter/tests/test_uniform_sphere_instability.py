@@ -1,10 +1,7 @@
 """Regression test for the instability of a uniformly magnetised sphere."""
 
-import subprocess
-
 import micromagneticmodel as mm
 import numpy as np
-import pyvista as pv
 
 import tommos_adapter as ta
 
@@ -12,36 +9,19 @@ import tommos_adapter as ta
 def test_uniform_sphere_instability_field(tmp_path, monkeypatch):
     """A uniformly magnetised soft sphere becomes unstable near Js/3."""
     name = "uniform_sphere"
-    subprocess.run(
-        [
-            "tommos",
-            "mesh",
-            "--geom",
-            "ellipsoid",
-            "--extent",
-            "20,20,20",
-            "--h",
-            "3",
-            "--backend",
-            "meshpy",
-            "--out-name",
-            name,
-        ],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-        text=True,
+    state = ta.create_mesh(
+        geom="ellipsoid",
+        extent=(20, 20, 20),
+        h=3,
+        out_name=tmp_path / name,
+        additional_mesher_arguments="--backend meshpy",
     )
 
-    state = pv.read(tmp_path / f"{name}.vtu")
-    state.points *= ta.scripts.DEFAULT_MESH_UNIT
-    state.cell_data["region_id"] = state.cell_data.pop("mat_id")
-    state.point_data["m"] = np.tile((0.0, 0.0, 1.0), (state.n_points, 1))
-
     spontaneous_polarisation = 1.0  # Js = mu0 Ms in T
-    state.cell_data["Ms"] = np.full(
-        state.n_cells,
-        spontaneous_polarisation / mm.consts.mu0,
+    state = ta.set_magnetization(
+        state,
+        m=(0, 0, 1),
+        Ms=spontaneous_polarisation / mm.consts.mu0,
     )
 
     system = mm.System(
