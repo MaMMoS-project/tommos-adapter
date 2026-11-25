@@ -1,4 +1,4 @@
-"""Test configurable TOMMOS command construction and executable lookup."""
+"""Test configurable tommos command construction and executable lookup."""
 
 import re
 import shlex
@@ -25,7 +25,7 @@ def test_name():
 
 
 def test_call_dry_run(platform_suffix):
-    """Construct the default TOMMOS command without executing it."""
+    """Construct the default tommos command without executing it."""
     runner = TommosRunner()
     cmd = runner._call("hyst", dry_run=True)
     assert cmd == "tommos loop hyst" + platform_suffix

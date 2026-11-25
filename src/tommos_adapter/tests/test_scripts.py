@@ -1,4 +1,4 @@
-"""Tests for the TOMMOS input translation functions."""
+"""Tests for the tommos input translation functions."""
 
 import configparser
 import io
@@ -141,7 +141,7 @@ def test_krn_script_translates_default_materials(system):
 
 
 def test_krn_script_matches_known_example(system):
-    """KRN translation matches a known TOMMOS input file."""
+    """KRN translation matches a known tommos input file."""
     expected = textwrap.dedent(
         """\
         # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)

@@ -248,7 +248,7 @@ def test_schedule_command():
 
 
 def test_call_passes_progress_information():
-    """Pass the number and location of TOMMOS snapshots to the runner."""
+    """Pass the number and location of tommos snapshots to the runner."""
     system = mm.System(name="test_progress")
     runner = Mock()
 
@@ -265,7 +265,7 @@ def test_call_passes_progress_information():
 
 
 def _write_tommos_output(state, output_file, magnetization):
-    """Write a minimal VTU file matching TOMMOS output."""
+    """Write a minimal VTU file matching tommos output."""
     output_state = state.copy()
     output_state.clear_data()
     output_state.point_data["m"] = np.broadcast_to(magnetization, (state.n_points, 3))
@@ -274,7 +274,7 @@ def _write_tommos_output(state, output_file, magnetization):
 
 
 def test_read_data_updates_system(m_cube_20_001, tmp_path, monkeypatch, write_mammos_table):
-    """Read the last TOMMOS state and table while retaining grid metadata."""
+    """Read the last tommos state and table while retaining grid metadata."""
     system = mm.System(name="read_data", m=m_cube_20_001)
     system.m.point_data["custom_point_data"] = np.arange(system.m.n_points)
     system.m.cell_data["region"] = np.arange(system.m.n_cells)
@@ -347,7 +347,7 @@ def test_read_data_drops_airbox(m_cube_20_001, tmp_path, monkeypatch, write_mamm
 
 
 def test_read_data_requires_output(m_cube_20_001, tmp_path, monkeypatch):
-    """Missing TOMMOS snapshots produce a helpful error without changing the system."""
+    """Missing tommos snapshots produce a helpful error without changing the system."""
     system = mm.System(name="missing_output", m=m_cube_20_001)
     magnetization_before_read = system.m.point_data["m"].copy()
     monkeypatch.chdir(tmp_path)
@@ -360,7 +360,7 @@ def test_read_data_requires_output(m_cube_20_001, tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("invalid_output", ["missing_m", "wrong_shape", "different_mesh"])
 def test_read_data_rejects_invalid_output(m_cube_20_001, tmp_path, monkeypatch, invalid_output):
-    """Invalid TOMMOS snapshots do not partially update the system."""
+    """Invalid tommos snapshots do not partially update the system."""
     system = mm.System(name="invalid_output", m=m_cube_20_001)
     magnetization_before_read = system.m.point_data["m"].copy()
 
@@ -452,7 +452,7 @@ def test_check_system_energies_unsupported_parameters(m_cube_20_001):
     ],
 )
 def test_check_system_requires_grid_data(m_cube_20_001, association, name, error_message):
-    """All arrays needed to create TOMMOS inputs must be present."""
+    """All arrays needed to create tommos inputs must be present."""
     system = mm.System(name="test_missing_grid_data", energy=mm.Exchange(A=1e-12) + mm.Demag(), m=m_cube_20_001)
     getattr(system.m, association).remove(name)
 
