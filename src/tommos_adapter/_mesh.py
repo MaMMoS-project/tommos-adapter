@@ -11,6 +11,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import mammos_entity as me
+import mammos_units as u
 import numpy as np
 import pyvista as pv
 
@@ -356,6 +358,12 @@ def set_magnetization(
         raise ValueError("Argument `m` cannot be the zero vector.")
     mesh.point_data["m"] = np.tile(m_array, (mesh.n_points, 1))
 
+    if isinstance(Ms, me.Entity):
+        Ms = me._entity.from_compatible(
+            "SpontaneousMagnetization", "A/m", compatible_entities=("Magnetization",), Ms=Ms
+        ).q
+    if isinstance(Ms, u.Quantity):
+        Ms = Ms.to("A/m").value
     if isinstance(Ms, numbers.Real) and Ms >= 0 and np.isfinite(Ms):
         mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
     elif isinstance(Ms, Mapping):
