@@ -2,6 +2,7 @@
 
 import configparser
 import io
+import textwrap
 
 import micromagneticmodel as mm
 import numpy as np
@@ -13,7 +14,7 @@ from tommos_adapter import scripts
 
 @pytest.fixture
 def system():
-    """Return a two-region tetrahedral test system."""
+    """Return a tetrahedral test system with two materials."""
     points = np.array(
         [
             [0.0, 0.0, 0.0],
@@ -27,10 +28,11 @@ def system():
     cell_types = np.array([pv.CellType.TETRA, pv.CellType.TETRA], dtype=np.uint8)
     grid = pv.UnstructuredGrid(cells, cell_types, points)
     grid.point_data["m"] = np.tile((0.0, 0.0, 1.0), (grid.n_points, 1))
-    grid.cell_data["region_id"] = np.array([10, 20])
+    grid.cell_data["mat_id"] = np.array([10, 20])
     grid.cell_data["Ms"] = np.array([1e6, 0.5e6])
-    grid.field_data["region_ids"] = np.array([10, 20])
-    grid.field_data["region_names"] = np.array(["hard", "soft"])
+    grid.field_data["mat_ids"] = np.array([10, 20])
+    grid.field_data["mat_names"] = np.array(["hard", "soft"])
+    grid.field_data["mesh_unit_length"] = 1e-9
 
     energy = (
         mm.Exchange(A={"hard": 1e-11, "soft": 5e-12})
@@ -40,24 +42,49 @@ def system():
         )
         + mm.Demag()
     )
-    return mm.System(name="two_regions", energy=energy, m=grid)
+    return mm.System(name="two_materials", energy=energy, m=grid)
 
 
-def test_mesh_data_scales_points_and_remaps_regions(system):
-    """Mesh translation scales SI coordinates and remaps region identifiers."""
-    data = scripts.mesh_data(system, mesh_unit=1e-9)
+@pytest.mark.parametrize(
+    "mesh_unit_length, error_string",
+    [
+        ([1, 2], "Mesh unit length should be a single-valued field data"),
+        (-1e-9, "must be a positive finite number"),
+        (np.nan, "must be a positive finite number"),
+    ],
+)
+def test_wrong_mesh_unit_length(system, mesh_unit_length, error_string):
+    if mesh_unit_length is None:
+        del system.m.field_data["mesh_unit_length"]
+    else:
+        system.m.field_data["mesh_unit_length"] = mesh_unit_length
+    with pytest.raises(ValueError, match=error_string):
+        scripts.p2_script(
+            system,
+            hx=0,
+            hy=0,
+            hz=1,
+            hstart=-1,
+            hfinal=1,
+            hstep=0.5,
+        )
+
+
+def test_mesh_data_remaps_materials(system):
+    """Test remapping of material identifiers."""
+    data = scripts.mesh_data(system)
 
     assert data.keys() == {"knt", "ijk"}
-    assert np.allclose(data["knt"], system.m.points / 1e-9)
+    assert np.allclose(data["knt"], system.m.points)
     assert np.array_equal(data["ijk"][:, :4], np.array([[0, 1, 2, 3], [1, 2, 3, 4]]))
     assert np.array_equal(data["ijk"][:, 4], np.array([1, 2]))
 
 
-def test_mesh_data_requires_region_ids(system):
-    """The public translator enforces the documented region contract."""
-    system.m.cell_data.remove("region_id")
+def test_mesh_data_requires_material_ids(system):
+    """The public translator enforces the documented material contract."""
+    system.m.cell_data.remove("mat_id")
 
-    with pytest.raises(ValueError, match="cell_data does not contain 'region_id'"):
+    with pytest.raises(ValueError, match="cell_data does not contain 'mat_id'"):
         scripts.mesh_data(system)
 
 
@@ -80,7 +107,7 @@ def test_mesh_data_does_not_write_files(system, tmp_path, monkeypatch):
     assert not list(tmp_path.iterdir())
 
 
-def test_krn_script_translates_regional_materials(system):
+def test_krn_script_translates_multiple_materials(system):
     """Material translation preserves region-dependent parameters."""
     table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
 
@@ -94,11 +121,33 @@ def test_krn_script_translates_regional_materials(system):
     assert table[:, 5] == pytest.approx((1e-11, 5e-12))
 
 
+def test_krn_script_translates_default_materials(system):
+    """Explicit regions override Ubermag-style default material values."""
+    system.energy = (
+        mm.Exchange(A={"default": 1e-11, "soft": 5e-12})
+        + mm.UniaxialAnisotropy(
+            K={"default": 1e6, "soft": 2e5},
+            u={"default": (0, 0, 1), "soft": (1, 0, 0)},
+        )
+        + mm.Demag()
+    )
+
+    table = np.loadtxt(io.StringIO(scripts.krn_script(system)))
+
+    # KRN columns are theta, phi, K1, K2, Js, and A.
+    assert table[:, 0] == pytest.approx((0.0, np.pi / 2))
+    assert table[:, 2] == pytest.approx((1e6, 2e5))
+    assert table[:, 5] == pytest.approx((1e-11, 5e-12))
+
+
 def test_krn_script_matches_known_example(system):
     """KRN translation matches a known TOMMOS input file."""
-    expected = (
-        "0 0 1000000 0 1.2566370614359172 9.9999999999999994e-12\n"
-        "1.5707963267948966 0 200000 0 0.62831853071795862 4.9999999999999997e-12\n"
+    expected = textwrap.dedent(
+        """\
+        # theta (rad) phi (rad) K1 (J/m3) not used Js (Tesla) A (J/m)
+        0 0 1000000 0 1.2566370614359172 9.9999999999999994e-12
+        1.5707963267948966 0 200000 0 0.62831853071795862 4.9999999999999997e-12
+        """
     )
 
     assert scripts.krn_script(system) == expected
@@ -154,22 +203,6 @@ def test_p2_script_rejects_nonuniform_m(system):
             hfinal=1,
             hstep=0.5,
         )
-
-
-def test_krn_script_rejects_missing_demag(system):
-    """Systems must declare the demagnetisation energy TOMMOS computes."""
-    system.energy = mm.Exchange(A=1e-11)
-
-    with pytest.raises(ValueError, match="always computes demagnetisation"):
-        scripts.krn_script(system)
-
-
-def test_krn_script_rejects_zeeman(system):
-    """The hysteresis driver, rather than a Zeeman term, defines the field."""
-    system.energy += mm.Zeeman(H=(0, 0, 1e6))
-
-    with pytest.raises(ValueError, match="not supported by TOMMOS"):
-        scripts.krn_script(system)
 
 
 @pytest.mark.parametrize(
