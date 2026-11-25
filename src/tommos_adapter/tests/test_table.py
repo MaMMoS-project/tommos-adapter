@@ -127,9 +127,9 @@ def test_magnetization_components(tommos_simulation):
         average_magnetizations.append(np.average(system_i.point_data["m"], axis=0))
     average_magnetizations = np.asarray(average_magnetizations)
 
-    np.testing.assert_allclose(average_magnetizations[:, 0], collection.mx, rtol=5e-2)
-    np.testing.assert_allclose(average_magnetizations[:, 1], collection.my, rtol=5e-2)
-    np.testing.assert_allclose(average_magnetizations[:, 2], collection.mz, rtol=5e-2)
+    np.testing.assert_allclose(average_magnetizations[:, 0], collection.mx.q, rtol=5e-2)
+    np.testing.assert_allclose(average_magnetizations[:, 1], collection.my.q, rtol=5e-2)
+    np.testing.assert_allclose(average_magnetizations[:, 2], collection.mz.q, rtol=5e-2)
 
 
 def test_table_from_file_without_renaming(synthetic_table_factory):
@@ -163,7 +163,7 @@ def test_table_to_entity_collection(synthetic_table_factory):
     assert collection.J_par == me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T")
     assert me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3") == collection.E
     assert collection.gnorm == me.Entity("EnergyDensity", [400, 40, 4], "J / m3")
-    np.testing.assert_allclose(collection.mx, [1, 0, 0])
-    np.testing.assert_allclose(collection.my, [0, 1, 0])
-    np.testing.assert_allclose(collection.mz, [0, 0, 1])
+    np.testing.assert_allclose(collection.mx.q, [1, 0, 0])
+    np.testing.assert_allclose(collection.my.q, [0, 1, 0])
+    np.testing.assert_allclose(collection.mz.q, [0, 0, 1])
     np.testing.assert_allclose(collection.additional_column, [7, 8, 9])
