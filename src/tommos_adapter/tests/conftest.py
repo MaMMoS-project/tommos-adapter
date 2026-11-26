@@ -149,6 +149,22 @@ def write_mammos_table():
             additional_column=[7, 8, 9],
         )
         collection.to_csv(filename)
+        with open(filename.parent / "synthetic.mh", "w") as f:
+            f.write("# B J mx my mz E\n")
+            np.savetxt(
+                f,
+                np.column_stack(
+                    (
+                        collection.B_ext_T.value,
+                        collection.J_par_T.value,
+                        [1.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0],
+                        [0.0, 0.0, 1.0],
+                        collection.E.value,
+                    )
+                ),
+                delimiter=" ",
+            )
         return filename
 
     return _write

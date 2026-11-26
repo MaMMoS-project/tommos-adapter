@@ -6,6 +6,7 @@ import os
 import types
 
 import mammos_entity as me
+import pandas as pd
 import ubermagtable as ut
 
 _COLUMN_RENAMES = {
@@ -36,6 +37,23 @@ def table_from_file(
         Table containing all CSV columns, units, and MaMMoS metadata.
     """
     collection = me.from_csv(filename)
+    mh_file = list(filename.parent.glob("*.mh"))[0]
+    df = pd.read_csv(mh_file, sep=" ", names=["B", "J", "mx", "my", "mz", "E"], comment="#")
+    collection.mx = me.Entity(
+        ontology_label="RatioQuantity",
+        value=df.mx,
+        description="x component of the spatially averaged normalized magnetization (Mx/Ms)",
+    )
+    collection.my = me.Entity(
+        ontology_label="RatioQuantity",
+        value=df.my,
+        description="y component of the spatially averaged normalized magnetization (My/Ms)",
+    )
+    collection.mz = me.Entity(
+        ontology_label="RatioQuantity",
+        value=df.mz,
+        description="z component of the spatially averaged normalized magnetization (Mz/Ms)",
+    )
     data = collection.to_dataframe()
     metadata = collection.metadata()
 

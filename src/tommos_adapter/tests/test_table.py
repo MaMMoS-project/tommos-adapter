@@ -1,6 +1,7 @@
 """Test TOMMOS table output and reusable Ubermag table behaviour."""
 
 import mammos_entity as me
+import micromagneticdata as mdata
 import numpy as np
 import pytest
 from ubermagtable.testing import table as table_testing
@@ -80,7 +81,17 @@ def test_table_from_file(synthetic_table_factory):
     table = synthetic_table_factory(x="B_hysteresis")
 
     assert table.x == "B_hysteresis"
-    assert list(table.data.columns) == ["config", "B_hysteresis", "J_par", "E", "gnorm", "additional_column"]
+    assert list(table.data.columns) == [
+        "config",
+        "B_hysteresis",
+        "J_par",
+        "E",
+        "gnorm",
+        "additional_column",
+        "mx",
+        "my",
+        "mz",
+    ]
     assert table.units == {
         "config": "",
         "B_hysteresis": "T",
@@ -88,10 +99,37 @@ def test_table_from_file(synthetic_table_factory):
         "E": "J / m3",
         "gnorm": "J / m3",
         "additional_column": "",
+        "mx": "",
+        "my": "",
+        "mz": "",
     }
     np.testing.assert_allclose(table.data["additional_column"], (7, 8, 9))
     assert table.attributes["mammos"]["metadata"]["config"]["ontology_label"] == "Index"
     assert table.attributes["mammos"]["metadata"]["E"]["ontology_label"] == "EnergyDensity"
+
+
+def test_magnetization_components(tommos_simulation):
+    """Test magnetization components `mx`, `my`, `mz` from real simulation.
+
+    We compare the average magnetization stored in the `EntityCollection` generated from the output table via
+    `table.to_entity_collection()` with the average magnetization evaluated directly from the system at each
+    stored magnetization field. The relative tolerance of 5% is chosen arbitrarily.
+    """
+    system, output_directory = tommos_simulation
+    drive = mdata.Data(name=system.name, dirname=output_directory)[0]
+    table = table_from_file(
+        output_directory / system.name / "drive-0" / f"hyst_{system.name}" / "mammos_hysteresis.csv"
+    )
+    collection = table.to_entity_collection()
+
+    average_magnetizations = []
+    for system_i in drive:
+        average_magnetizations.append(np.average(system_i.point_data["m"], axis=0))
+    average_magnetizations = np.asarray(average_magnetizations)
+
+    np.testing.assert_allclose(average_magnetizations[:, 0], collection.mx.q, rtol=5e-2)
+    np.testing.assert_allclose(average_magnetizations[:, 1], collection.my.q, rtol=5e-2)
+    np.testing.assert_allclose(average_magnetizations[:, 2], collection.mz.q, rtol=5e-2)
 
 
 def test_table_from_file_without_renaming(synthetic_table_factory):
@@ -115,6 +153,9 @@ def test_table_to_entity_collection(synthetic_table_factory):
         "E",
         "gnorm",
         "additional_column",
+        "mx",
+        "my",
+        "mz",
     ]
     assert collection.description == "Synthetic TOMMOS hysteresis output."
     assert collection.config == me.Entity("Index", [0, 1, 2])
@@ -122,4 +163,7 @@ def test_table_to_entity_collection(synthetic_table_factory):
     assert collection.J_par == me.Entity("MagneticPolarisation", [-0.9, 0.1, 0.95], "T")
     assert me.Entity("EnergyDensity", [120_000, 100_000, 90_000], "J / m3") == collection.E
     assert collection.gnorm == me.Entity("EnergyDensity", [400, 40, 4], "J / m3")
+    np.testing.assert_allclose(collection.mx.q, [1, 0, 0])
+    np.testing.assert_allclose(collection.my.q, [0, 1, 0])
+    np.testing.assert_allclose(collection.mz.q, [0, 0, 1])
     np.testing.assert_allclose(collection.additional_column, [7, 8, 9])
