@@ -3,7 +3,6 @@
 import re
 import shlex
 import subprocess
-import sys
 from unittest.mock import Mock
 
 import pytest
@@ -11,45 +10,44 @@ import pytest
 from tommos_adapter import TommosRunner
 
 
-@pytest.fixture
-def platform_suffix():
-    if sys.platform == "darwin":
-        return " --cpu-spmv-backend scipy --no-cpp-mkl"
-    else:
-        return ""
-
-
 def test_name():
     """Expose the calculator name expected by the external-runner API."""
     assert TommosRunner().package_name == "Tommos"
 
 
-def test_call_dry_run(platform_suffix):
+def test_call_dry_run():
     """Construct the default TOMMOS command without executing it."""
     runner = TommosRunner()
     cmd = runner._call("hyst", dry_run=True)
-    assert cmd == "tommos loop hyst" + platform_suffix
+    assert cmd == "tommos loop --cpu-spmv-backend scipy --no-cpp-mkl hyst"
 
 
 @pytest.mark.parametrize(
-    ("command", "expected"),
+    ("command", "expected_prefix"),
     [
-        ("pixi run -e cuda tommos", "pixi run -e cuda tommos loop hyst"),
-        (["pixi", "run", "-e", "cuda", "tommos"], "pixi run -e cuda tommos loop hyst"),
+        ("pixi run -e cuda tommos", "pixi run -e cuda tommos"),
+        (["pixi", "run", "-e", "cuda", "tommos"], "pixi run -e cuda tommos"),
     ],
 )
-def test_call_dry_run_with_command_prefix(command, expected, platform_suffix):
+def test_call_dry_run_with_command_prefix(command, expected_prefix):
     """Accept string and sequence forms of a multi-part command prefix."""
     runner = TommosRunner(command=command)
-    assert runner._call("hyst", dry_run=True) == expected + platform_suffix
+    assert runner._call("hyst", dry_run=True) == (f"{expected_prefix} loop --cpu-spmv-backend scipy --no-cpp-mkl hyst")
 
 
-def test_call_dry_run_does_not_require_local_executable(monkeypatch, platform_suffix):
+def test_call_dry_run_allows_overriding_backend_defaults():
+    """Place explicit user arguments after the portable backend defaults."""
+    runner = TommosRunner()
+    cmd = runner._call("hyst --cpu-spmv-backend persistent_mkl --cpp-mkl", dry_run=True)
+    assert cmd == ("tommos loop --cpu-spmv-backend scipy --no-cpp-mkl hyst --cpu-spmv-backend persistent_mkl --cpp-mkl")
+
+
+def test_call_dry_run_does_not_require_local_executable(monkeypatch):
     """Keep dry-run command generation usable for remote scheduling."""
     which = Mock()
     monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", which)
 
-    expected = "missing-tommos loop hyst" + platform_suffix
+    expected = "missing-tommos loop --cpu-spmv-backend scipy --no-cpp-mkl hyst"
     assert TommosRunner(command="missing-tommos")._call("hyst", dry_run=True) == expected
     which.assert_not_called()
 
@@ -62,14 +60,14 @@ def test_call_missing_executable(monkeypatch):
         TommosRunner(command="missing-tommos")._call("hyst")
 
 
-def test_call_resolves_executable(monkeypatch, platform_suffix):
+def test_call_resolves_executable(monkeypatch):
     """Resolve the command executable before invoking the subprocess."""
     run = Mock(return_value=subprocess.CompletedProcess([], 0))
     monkeypatch.setattr("tommos_adapter.tommos_runner.shutil.which", lambda executable: "/resolved/tommos")
     monkeypatch.setattr("tommos_adapter.tommos_runner.subprocess.run", run)
 
     result = TommosRunner()._call("hyst")
-    expected_cmd = shlex.split("/resolved/tommos loop hyst" + platform_suffix)
+    expected_cmd = shlex.split("/resolved/tommos loop --cpu-spmv-backend scipy --no-cpp-mkl hyst")
 
     assert result.returncode == 0
     run.assert_called_once_with(

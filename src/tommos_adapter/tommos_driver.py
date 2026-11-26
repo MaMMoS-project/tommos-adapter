@@ -46,7 +46,7 @@ class Driver(mm.adapter_base.ExternalDriver):
             **kwargs: Optional keyword arguments passed to the runner call.
 
         Returns:
-            Argument string passed to the `tommos loop` runner. It differs depending on the running platform.
+            Argument string passed to the `tommos loop` runner.
         """
         argstr = f"{system.name} --add-shell"
         if nd := kwargs.get("num_devices"):

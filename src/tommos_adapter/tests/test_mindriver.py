@@ -1,6 +1,5 @@
 """Test min driver."""
 
-import sys
 import textwrap
 
 import discretisedfield as df
@@ -182,9 +181,7 @@ def test_schedule_command():
     system = mm.System(name="test_schedule_command")
     md = ta.MinDriver()
     tr = ta.TommosRunner()
-    schedule_command = "tommos loop test_schedule_command --add-shell"
-    if sys.platform == "darwin":
-        schedule_command += " --cpu-spmv-backend scipy --no-cpp-mkl"
+    schedule_command = "tommos loop --cpu-spmv-backend scipy --no-cpp-mkl test_schedule_command --add-shell"
     assert md._schedule_commands(system, tr) == [schedule_command]
     assert md._schedule_commands(system, None) == [schedule_command]
 

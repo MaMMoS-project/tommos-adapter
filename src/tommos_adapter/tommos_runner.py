@@ -3,7 +3,6 @@
 import shlex
 import shutil
 import subprocess
-import sys
 from collections.abc import Sequence
 
 from micromagneticmodel import adapter_base
@@ -11,6 +10,9 @@ from micromagneticmodel import adapter_base
 
 class TommosRunner(adapter_base.ExternalRunner):
     """Runner to execute `tommos`.
+
+    TOMMOS uses the SciPy CPU SpMV backend without the C++ MKL minimizer by
+    default on all platforms.
 
     Args:
         command: Executable or command prefix used to invoke TOMMOS. For example,
@@ -53,10 +55,14 @@ class TommosRunner(adapter_base.ExternalRunner):
             Command string if run with `dry_run=True` without executing it, otherwise the command is executed and the
             result of the subprocess call is returned.
         """
-        command = [*self.command, "loop", *shlex.split(argstr)]
-
-        if sys.platform == "darwin":
-            command += shlex.split(" --cpu-spmv-backend scipy --no-cpp-mkl")
+        command = [
+            *self.command,
+            "loop",
+            "--cpu-spmv-backend",
+            "scipy",
+            "--no-cpp-mkl",
+            *shlex.split(argstr),
+        ]
 
         # `need_stderr` is ignored in this implementation, and stdout and stderr are always captured.
         stdout = stderr = subprocess.PIPE
