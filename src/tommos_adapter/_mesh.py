@@ -330,8 +330,8 @@ def set_magnetization(
         mesh: Mesh to fill with information.
         m: single magnetization array to spread to all mesh points. It gets normalized internally.
         Ms: The spontaneous magnetization can be defined either as single value, spread to all mesh cells, or as a
-            dictionary linking each mesh's `mat_name` to a single positive finite real number. The key 'default' can
-            be used in the dictionary to set the same spontaneous magnetization where not set explicitly.
+            dictionary linking each mesh's `mat_name` to a single non-negative finite real number. The key 'default'
+            can be used in the dictionary to set the same spontaneous magnetization where not set explicitly.
 
     Returns:
         Mesh with set values.
@@ -356,7 +356,7 @@ def set_magnetization(
         raise ValueError("Argument `m` cannot be the zero vector.")
     mesh.point_data["m"] = np.tile(m_array, (mesh.n_points, 1))
 
-    if isinstance(Ms, numbers.Real) and Ms > 0 and np.isfinite(Ms):
+    if isinstance(Ms, numbers.Real) and Ms >= 0 and np.isfinite(Ms):
         mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
     elif isinstance(Ms, Mapping):
         Ms_keys = set(Ms.keys())
