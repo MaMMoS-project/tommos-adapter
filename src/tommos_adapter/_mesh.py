@@ -322,7 +322,7 @@ def read_mesh(
 def set_magnetization(
     mesh: pyvista.UnstructuredGrid,
     m: tuple,
-    Ms: numbers.Real | collections.abc.Mapping[str, numbers.Real],
+    Ms: me.Entity | u.Quantity | numbers.Real | collections.abc.Mapping[str, me.Entity | u.Quantity | numbers.Real],
 ) -> pyvista.UnstructuredGrid:
     """Set values to initial magnetization and spontaneous magnetization.
 
@@ -341,9 +341,11 @@ def set_magnetization(
     Raises:
         ValueError: `m` is of the wrong type, wrong length, or contains non finite values.
         ValueError: `m` is the zero vector.
+        ValueErrro: `Ms` given as a scalar value has unacceptable values.
         ValueError: `Ms` invalid given material name.
         ValueError: `Ms` is missing information.
-        ValueError: `Ms` is the wrong type or has unacceptable values.
+        ValueErrro: `Ms` given as a dictionary has unacceptable values.
+        ValueError: `Ms` is of the wrong type.
     """
     if not (
         isinstance(m, Sequence | np.ndarray)
@@ -358,14 +360,20 @@ def set_magnetization(
         raise ValueError("Argument `m` cannot be the zero vector.")
     mesh.point_data["m"] = np.tile(m_array, (mesh.n_points, 1))
 
-    if isinstance(Ms, me.Entity):
-        Ms = me._entity.from_compatible(
-            "SpontaneousMagnetization", "A/m", compatible_entities=("Magnetization",), Ms=Ms
-        ).q
-    if isinstance(Ms, u.Quantity):
-        Ms = Ms.to("A/m").value
-    if isinstance(Ms, numbers.Real) and Ms >= 0 and np.isfinite(Ms):
-        mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms)
+    if isinstance(Ms, me.Entity | u.Quantity | numbers.Real):
+        Ms_val = me._entity.from_compatible(
+            "SpontaneousMagnetization",
+            "A/m",
+            compatible_entities=("Magnetization", "SaturationMagnetization"),
+            enforce_unit=True,
+            Ms=Ms,
+        ).value
+        if not (isinstance(Ms_val, np.float64) and Ms_val >= 0 and np.isfinite(Ms_val)):
+            raise ValueError(
+                "Invalid scalar argument `Ms`. it must be a positive finite real number. "
+                f"Got: {Ms}, equivalent to value: {Ms_val}."
+            )
+        mesh.cell_data["Ms"] = np.full(mesh.n_cells, Ms_val)
     elif isinstance(Ms, Mapping):
         Ms_keys = set(Ms.keys())
         mesh_names = set(mesh.field_data["mat_names"])
@@ -384,9 +392,26 @@ def set_magnetization(
             )
         # case 3: Ms_keys contains all keys or some keys + 'default'
         mesh.cell_data["Ms"] = np.zeros(mesh.n_cells, dtype=np.float64)
+        Ms_formatted = {}
+        for key, value in Ms.items():
+            Ms_Am = me._entity.from_compatible(
+                "SpontaneousMagnetization",
+                "A/m",
+                compatible_entities=("Magnetization", "SaturationMagnetization"),
+                enforce_unit=True,
+                Ms=value,
+            ).value
+            if not (isinstance(Ms_Am, np.float64) and Ms_Am >= 0 and np.isfinite(Ms_Am)):
+                raise ValueError(
+                    f"Invalid argument `Ms` for grain {key}. It must be a positive finite real number. "
+                    f"Got: {value}, equivalent to value: {Ms_Am}."
+                )
+            Ms_formatted[key] = Ms_Am
         for i, mat_id in enumerate(mesh.field_data["mat_ids"]):
             mat_name = mesh.field_data["mat_names"][i]
-            mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == mat_id] = Ms.get(mat_name, Ms.get("default"))
+            mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == mat_id] = Ms_formatted.get(
+                mat_name, Ms_formatted.get("default")
+            )
 
     else:
         raise ValueError(

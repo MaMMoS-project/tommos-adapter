@@ -240,10 +240,17 @@ def test_set_magnetization_wrong_m(mesh_cube_20, m):
         ta.set_magnetization(mesh, m=m, Ms=1e6)
 
 
-@pytest.mark.parametrize("Ms", ["non_supported", [1, 2], -2, np.nan])
-def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
+@pytest.mark.parametrize("Ms", ["non_supported", [1, 2]])
+def test_set_magnetization_wrong_Ms_type(mesh_cube_20, Ms):
     mesh = ta.read_mesh(mesh_cube_20)
     with pytest.raises(ValueError, match="Invalid argument `Ms`"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
+
+
+@pytest.mark.parametrize("Ms", [-2, np.nan, np.inf])
+def test_set_magnetization_wrong_Ms_scalar(mesh_cube_20, Ms):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="Invalid scalar argument `Ms`"):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
 
 
@@ -253,7 +260,14 @@ def test_set_Ms_multigrain_explicitly(mesh_cube_mg: pv.UnstructuredGrid):
     We test explicit assignment via the `mat_name`.
     """
     mesh = ta.set_magnetization(
-        mesh_cube_mg, m=(0, 0, 1), Ms={"grain_1": 1e6, "grain_2": 2e6, "grain_3": 1.5e6, "grain_boundary": 0.0}
+        mesh_cube_mg,
+        m=(0, 0, 1),
+        Ms={
+            "grain_1": 1e6,
+            "grain_2": 2e3 * u.kA / u.m,
+            "grain_3": me.Entity("Magnetization", 1.5, "MA/m"),
+            "grain_boundary": 0.0,
+        },
     )
     np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 1], 1e6)
     np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 2], 2e6)
