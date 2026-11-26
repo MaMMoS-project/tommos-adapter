@@ -247,10 +247,23 @@ def test_set_magnetization_wrong_Ms_type(mesh_cube_20, Ms):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
 
 
-@pytest.mark.parametrize("Ms", [-2, np.nan, np.inf])
+@pytest.mark.parametrize("Ms", [-2, np.nan, np.inf, -800 * u.kA / u.m, np.nan * u.A / u.m])
 def test_set_magnetization_wrong_Ms_scalar(mesh_cube_20, Ms):
     mesh = ta.read_mesh(mesh_cube_20)
     with pytest.raises(ValueError, match="Invalid scalar argument `Ms`"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
+
+
+@pytest.mark.parametrize(
+    "Ms, error_string",
+    [
+        (1 * u.T, "cannot be interpreted as entity SpontaneousMagnetization"),
+        (me.H(1e6, "A/m"), "not compatible with SpontaneousMagnetization"),
+    ],
+)
+def test_set_magnetization_wrong_Ms_incompatible_entity(mesh_cube_20, Ms, error_string):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match=error_string):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
 
 
