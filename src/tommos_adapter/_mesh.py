@@ -368,7 +368,7 @@ def set_magnetization(
             enforce_unit=True,
             Ms=Ms,
         ).value
-        if not (isinstance(Ms_val, np.float64) and Ms_val >= 0 and np.isfinite(Ms_val)):
+        if not (isinstance(Ms_val, numbers.Real) and Ms_val >= 0 and np.isfinite(Ms_val)):
             raise ValueError(
                 "Invalid scalar argument `Ms`. it must be a positive finite real number. "
                 f"Got: {Ms}, equivalent to value: {Ms_val}."
@@ -401,7 +401,7 @@ def set_magnetization(
                 enforce_unit=True,
                 Ms=value,
             ).value
-            if not (isinstance(Ms_Am, np.float64) and Ms_Am >= 0 and np.isfinite(Ms_Am)):
+            if not (isinstance(Ms_Am, numbers.Real) and Ms_Am >= 0 and np.isfinite(Ms_Am)):
                 raise ValueError(
                     f"Invalid argument `Ms` for grain {key}. It must be a positive finite real number. "
                     f"Got: {value}, equivalent to value: {Ms_Am}."
