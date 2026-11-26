@@ -20,6 +20,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v7
+    - name: Setup headless display
+      uses: pyvista/setup-headless-display-action@v3
     - name: Setup Pixi
       uses: prefix-dev/setup-pixi@v0.10.2
     - name: unit tests
