@@ -68,7 +68,7 @@ def cube_20_multigrain_n3_gb_path(data_dir: Path) -> Path:
 def mesh_cube_mg(cube_20_multigrain_n3_gb_path: Path) -> pv.UnstructuredGrid:
     """Read multigrain mesh and set `mat_names`."""
     mesh = ta.read_mesh(
-        pv.read(cube_20_multigrain_n3_gb_path),
+        cube_20_multigrain_n3_gb_path,
         mat_id_name_mapping={1: "grain_1", 2: "grain_2", 3: "grain_3", 4: "grain_boundary"},
     )
     return mesh

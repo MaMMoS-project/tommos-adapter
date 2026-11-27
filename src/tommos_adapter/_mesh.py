@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numbers
+import os
 import shlex
 import shutil
 import subprocess
@@ -241,6 +242,7 @@ def create_mesh(
     if res.returncode:
         raise RuntimeError(f"`tommos mesh` failed with the following stderr:\n{res.stderr}")
     res.check_returncode()
+
     mesh = pv.read(out_name.with_suffix(".vtu"))
     if mat_id_name_mapping is None and geom == "poly_gb":
         mat_ids = np.unique(mesh.cell_data["mat_id"])
@@ -250,13 +252,13 @@ def create_mesh(
 
 
 def read_mesh(
-    mesh: pyvista.UnstructuredGrid,
+    mesh: os.PathLike | pyvista.UnstructuredGrid,
     mesh_unit_length: numbers.Real = 1e-9,
     mat_id_name_mapping: collections.abc.Mapping[int, str] | None = None,
 ) -> pyvista.UnstructuredGrid:
     """Read mesh using `tommos mesh`.
 
-    This function modifies the given mesh to set the following `field_data` attributes:
+    This function modifies the mesh located in the given path to set the following `field_data` attributes:
 
     - `mesh_unit_length`: mesh unit length.
     - `mat_ids`: list of all unique material IDs.
@@ -265,7 +267,7 @@ def read_mesh(
     The name `default` as a material name (`mat_name`) is not allowed and it will raise an error.
 
     Args:
-        mesh: User-defined mesh or generated from `tommos mesh` as a :py:class:`pyvista.UnstructuredGrid`.
+        mesh: Location or pyvista dataset of the user-defined mesh or generated from `tommos mesh`.
             The mesh should contain a `cell_data` `'mat_id'` containing an integer id for each cell, intended as
             a grain index. If not given, the material is assumed to be uniform single grain and the value is set to 1.
         mesh_unit_length: Mesh unit length indicating a scaling factor in unit of meter. The default value 1e-9 means
@@ -277,6 +279,7 @@ def read_mesh(
         Modified mesh with set `field_data` attributes.
 
     Raises:
+        ValueError: Given mesh is not the path to an existing file nor a `pyvista.UnstructuredGrid` object.
         ValueError: Cell data attribute `mat_id` contains values different than :py:class:`numpy.int32`.
         ValueError: Given argument `mesh_unit_length` is of the wrong type or value.
         ValueError: Keys of `mat_id_name_mapping` and detected mesh `mat_ids` do not match.
@@ -285,6 +288,12 @@ def read_mesh(
     Warns:
         UserWarning: Given mesh does not a 'mat_id' `cell_data` attribute.
     """
+    if isinstance(mesh, os.PathLike) and (mesh_path := Path(mesh)).is_file():
+        mesh = pv.read(mesh_path)
+    elif not isinstance(mesh, pv.UnstructuredGrid):
+        raise ValueError(
+            f"Given mesh is not the path to an existing file nor a `pyvista.UnstructuredGrid` object. Got {mesh=}."
+        )
     if "mat_id" in mesh.cell_data:
         if (mat_id := mesh.cell_data.get_array("mat_id")).dtype != np.int32:
             raise ValueError(f"Cell data 'mat_id' should be an array of integers. Got {mat_id}.")

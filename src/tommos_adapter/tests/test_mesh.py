@@ -129,17 +129,29 @@ def test_create_mesh_process_fails():
 
 
 @pytest.mark.parametrize("mesh_unit_length, mat_id, mat_id_name_mapping", [(1e-6, 3, None), (1e-9, 1, {1: "region_1"})])
-def test_read_mesh_possible_args(mesh_cube_20, mesh_unit_length, mat_id, mat_id_name_mapping):
-    """Test `read_mesh` with different possible arguments."""
+def test_read_mesh_possible_args(tmp_path, mesh_cube_20, mesh_unit_length, mat_id, mat_id_name_mapping):
+    """Test `read_mesh` with different possible arguments.
+
+    We compare the mesh obtained by reading a mesh stored on disk and an UnstructuredGrid on memory.
+    """
     mesh_cube_20.cell_data["mat_id"] = np.full(mesh_cube_20.n_cells, mat_id, dtype=np.int32)
-    mesh_cube_20 = ta.read_mesh(
-        mesh_cube_20, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping
-    )
-    assert mesh_cube_20.field_data["mesh_unit_length"] == mesh_unit_length
-    np.testing.assert_equal(mesh_cube_20.cell_data["mat_id"], mat_id)
-    np.testing.assert_equal(mesh_cube_20.field_data["mat_ids"], [mat_id])
+
+    mesh_1 = ta.read_mesh(mesh_cube_20, mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping)
+    assert mesh_1.field_data["mesh_unit_length"] == mesh_unit_length
+    np.testing.assert_equal(mesh_1.cell_data["mat_id"], mat_id)
+    np.testing.assert_equal(mesh_1.field_data["mat_ids"], [mat_id])
     expected_mat_names = [f"grain_{mat_id}"] if mat_id_name_mapping is None else list(mat_id_name_mapping.values())
-    assert all(mesh_cube_20.field_data["mat_names"] == expected_mat_names)
+    assert all(mesh_1.field_data["mat_names"] == expected_mat_names)
+
+    mesh_cube_20.save(tmp_path / "test_read_mesh.vtu")
+    mesh_2 = ta.read_mesh(
+        tmp_path / "test_read_mesh.vtu", mesh_unit_length=mesh_unit_length, mat_id_name_mapping=mat_id_name_mapping
+    )
+    assert mesh_2.field_data["mesh_unit_length"] == mesh_unit_length
+    np.testing.assert_equal(mesh_2.cell_data["mat_id"], mat_id)
+    np.testing.assert_equal(mesh_2.field_data["mat_ids"], [mat_id])
+    expected_mat_names = [f"grain_{mat_id}"] if mat_id_name_mapping is None else list(mat_id_name_mapping.values())
+    assert all(mesh_2.field_data["mat_names"] == expected_mat_names)
 
 
 def test_read_mesh_wrong_mat_id(mesh_cube_20):
