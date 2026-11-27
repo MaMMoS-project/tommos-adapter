@@ -1,5 +1,7 @@
 """Test convenience functions for creating and reading meshes."""
 
+import mammos_entity as me
+import mammos_units as u
 import numpy as np
 import pytest
 import pyvista as pv
@@ -213,14 +215,22 @@ def test_create_mesh_multigrain_mat_id_name_mapping(tmp_path):
     assert all(mesh.field_data["mat_names"] == list(mapping.values()))
 
 
-@pytest.mark.parametrize("m, Ms", [((0, 0, 1), 1e6), ([1, 1, 1], 2e6), (np.array([1, 1, 0]), 1)])
-def test_set_magnetization_possible_args(mesh_cube_20, m, Ms):
+@pytest.mark.parametrize(
+    "m, Ms, Ms_val",
+    [
+        ((0, 0, 1), 1e6, 1e6),
+        ([1, 1, 1], 2e3 * u.kA / u.m, 2e6),
+        (np.array([1, 1, 0]), me.Entity("Magnetization", 1.5, "MA/m"), 1.5e6),
+        (np.array([0, 1, 0]), me.Entity("SpontaneousMagnetization", 1.2, "MA/m"), 1.2e6),
+    ],
+)
+def test_set_magnetization_possible_args(mesh_cube_20, m, Ms, Ms_val):
     """Test `set_magnetization` with different possible arguments."""
     mesh = ta.read_mesh(mesh_cube_20)
     mesh = ta.set_magnetization(mesh, m, Ms)
     m_unit = np.array(m) / np.linalg.norm(m)
     np.testing.assert_allclose(mesh.point_data["m"], np.tile(m_unit, (mesh.n_points, 1)))
-    np.testing.assert_allclose(mesh.cell_data["Ms"], np.full(mesh.n_cells, Ms))
+    np.testing.assert_allclose(mesh.cell_data["Ms"], np.full(mesh.n_cells, Ms_val))
 
 
 @pytest.mark.parametrize("m", ["non_supported", [1, 2], ["wrong", "value"], [np.inf, 0, 0]])
@@ -230,10 +240,30 @@ def test_set_magnetization_wrong_m(mesh_cube_20, m):
         ta.set_magnetization(mesh, m=m, Ms=1e6)
 
 
-@pytest.mark.parametrize("Ms", ["non_supported", [1, 2], -2, np.nan])
-def test_set_magnetization_wrong_Ms(mesh_cube_20, Ms):
+@pytest.mark.parametrize("Ms", ["non_supported", [1, 2]])
+def test_set_magnetization_wrong_Ms_type(mesh_cube_20, Ms):
     mesh = ta.read_mesh(mesh_cube_20)
     with pytest.raises(ValueError, match="Invalid argument `Ms`"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
+
+
+@pytest.mark.parametrize("Ms", [-2, np.nan, np.inf, -800 * u.kA / u.m, np.nan * u.A / u.m])
+def test_set_magnetization_wrong_Ms_scalar(mesh_cube_20, Ms):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match="Invalid scalar argument `Ms`"):
+        ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
+
+
+@pytest.mark.parametrize(
+    "Ms, error_string",
+    [
+        (1 * u.T, "cannot be interpreted as entity SpontaneousMagnetization"),
+        (me.H(1e6, "A/m"), "not compatible with SpontaneousMagnetization"),
+    ],
+)
+def test_set_magnetization_wrong_Ms_incompatible_entity(mesh_cube_20, Ms, error_string):
+    mesh = ta.read_mesh(mesh_cube_20)
+    with pytest.raises(ValueError, match=error_string):
         ta.set_magnetization(mesh, m=(0, 0, 1), Ms=Ms)
 
 
@@ -243,7 +273,14 @@ def test_set_Ms_multigrain_explicitly(mesh_cube_mg: pv.UnstructuredGrid):
     We test explicit assignment via the `mat_name`.
     """
     mesh = ta.set_magnetization(
-        mesh_cube_mg, m=(0, 0, 1), Ms={"grain_1": 1e6, "grain_2": 2e6, "grain_3": 1.5e6, "grain_boundary": 0.0}
+        mesh_cube_mg,
+        m=(0, 0, 1),
+        Ms={
+            "grain_1": 1e6,
+            "grain_2": 2e3 * u.kA / u.m,
+            "grain_3": me.Entity("Magnetization", 1.5, "MA/m"),
+            "grain_boundary": 0.0,
+        },
     )
     np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 1], 1e6)
     np.testing.assert_allclose(mesh.cell_data["Ms"][mesh.cell_data["mat_id"] == 2], 2e6)
