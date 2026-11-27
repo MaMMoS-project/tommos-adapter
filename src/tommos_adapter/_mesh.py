@@ -331,9 +331,10 @@ def set_magnetization(
     Args:
         mesh: Mesh to fill with information.
         m: single magnetization array to spread to all mesh points. It gets normalized internally.
-        Ms: The spontaneous magnetization can be defined either as single value, spread to all mesh cells, or as a
-            dictionary linking each mesh's `mat_name` to a single non-negative finite real number. The key 'default'
-            can be used in the dictionary to set the same spontaneous magnetization where not set explicitly.
+        Ms: Magnetization as :entity:`SpontaneousMagnetization`, :entity:`Magnetization`, or
+            :entity:`SaturationMagnetization`. If no unit is provided, values are interpreted as 'A / m'. Either a
+            single value for homogeneous magnetization or a dictionary of material names for multiple grains. The
+            key 'default' can be used in the dictionary to specify a value for grains not explicitly assigned.
 
     Returns:
         Mesh with set values.
